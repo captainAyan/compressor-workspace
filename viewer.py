@@ -53,6 +53,9 @@ class Viewer(ttk.Frame):
             canvas.bind("<ButtonPress-1>", self.on_pan_start)
             canvas.bind("<B1-Motion>", self.on_pan_move)
 
+        self.progressbar = ttk.Progressbar(self, orient=tk.HORIZONTAL, mode='indeterminate')
+        self.progressbar.pack(fill=tk.X, pady=5)
+
         # 3. Bottom controls toolbar
         toolbar = ttk.Frame(self, padding=5)
         toolbar.pack(fill=tk.X, pady=5)
@@ -63,8 +66,8 @@ class Viewer(ttk.Frame):
         self.zoom_slider.bind("<ButtonRelease-1>", lambda e: self.on_zoom_change_cb(float(self.zoom_slider.get())))
         
         ttk.Button(toolbar, text="Reset", command=self.on_reset_cb).pack(side=tk.LEFT, padx=2)
-        ttk.Button(toolbar, text="↺ -90°", width=5, command=lambda: self.on_rotate_cb(-90)).pack(side=tk.LEFT, padx=1)
-        ttk.Button(toolbar, text="90° ↻", width=5, command=lambda: self.on_rotate_cb(90)).pack(side=tk.LEFT, padx=1)
+        ttk.Button(toolbar, text="↺ -90°", width=5, command=lambda: self.on_rotate_cb(90)).pack(side=tk.LEFT, padx=1)
+        ttk.Button(toolbar, text="90° ↻", width=5, command=lambda: self.on_rotate_cb(-90)).pack(side=tk.LEFT, padx=1)
         ttk.Button(toolbar, text="180°", width=5, command=lambda: self.on_rotate_cb(180)).pack(side=tk.LEFT, padx=1)
         
         # Heatmap Gain Slider
@@ -144,5 +147,10 @@ class Viewer(ttk.Frame):
         self.canvas_a.xview(*args)
         self.canvas_b.xview(*args)
 
+    def start_progress(self):
+        self.progressbar.start()
+
+    def stop_progress(self):
+        self.progressbar.stop()
 
 
