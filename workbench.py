@@ -6,10 +6,19 @@ import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 from PIL import Image, ImageTk
 
-from viewer import Viewer
 from image_processor import ImageProcessor
+from source_manager import SourceManager
+from strings import ABOUT_DIALOG, SHORTCUT_DIALOG
+from utility import *
 
-from utility import disabled_text_view_updater
+from components.viewer import Viewer
+from components.menu import Menubar
+from components.topbar import Topbar
+from components.dialog import show_info_dialog
+from components.disabled_text import DisabledText
+from components.compression_controller import CompressionController
+from components.file_list import FileList
+
 
 class Workbench:
     def __init__(self, root):
@@ -19,11 +28,8 @@ class Workbench:
 
         self.executor = concurrent.futures.ThreadPoolExecutor(max_workers=2)
 
-        self.source_mode = None
-        self.source_dir = ""
-        self.dest_dir = ""
-        self.file_items = []
         self.current_index = 0
+        self.source_manager = SourceManager(self.on_source_changed, self.on_destination_changed)
 
         self.zoom_scale = 1.0
         self.rotation_angle = 0
@@ -35,10 +41,10 @@ class Workbench:
         self.current_ssim = 0.0
         self.saved_session_records = []
 
-        self.setup_ui()
-        self.setup_shortcuts()
+        self._setup_ui()
+        self._setup_shortcuts()
 
-    def setup_ui(self):
+    def _setup_ui(self):
         self._setup_menubar()
         self._setup_top_bar()
         
@@ -50,82 +56,32 @@ class Workbench:
         self._setup_right_panel(main_frame)
         self._setup_bottom_bar()
 
-    def setup_shortcuts(self):
+    def _setup_shortcuts(self):
         self.root.bind("<Alt-s>", lambda event: self.viewer.toggle_layout_swap())
         self.root.bind("<Alt-h>", lambda event: self.viewer.toggle_heatmap())
         self.root.bind("<Control-r>", lambda event: self.reset_view())
+        self.root.bind("<Control-Shift-F>", lambda event: self.select_files())
+        self.root.bind("<Control-f>", lambda event: self.select_folder())
+        self.root.bind("<Control-d>", lambda event: self.select_destination())
 
     def _setup_menubar(self):
-        # TODO make it work
-        menubar = tk.Menu(self.root)
-
-        # 1. File Menu
-        file_menu = tk.Menu(menubar, tearoff=0)
-        file_menu.add_command(label="Select Files", command=lambda: self.select_files())
-        file_menu.add_command(label="Select Folder", command=lambda: self.select_folder())
-        file_menu.add_command(label="Select Destination", command=lambda: self.select_destination())
-        file_menu.add_separator()
-        file_menu.add_command(label="Quit", command=self.root.quit)
-        menubar.add_cascade(label="File", menu=file_menu)
-
-        # 2. View Menu
-        view_menu = tk.Menu(menubar, tearoff=0)
-        view_menu.add_command(label="Swap View", accelerator="Alt+S", command=lambda: self.viewer.toggle_layout_swap())
-        view_menu.add_command(label="View Heatmap", accelerator="Alt+H", command=lambda: self.viewer.toggle_heatmap())
-        view_menu.add_separator()
-        view_menu.add_command(label="Reset View", accelerator="Ctrl+R", command=lambda: self.reset_view())
-        menubar.add_cascade(label="View", menu=view_menu)
-
-        # 3. Help Menu
-        help_menu = tk.Menu(menubar, tearoff=0)
-        help_menu.add_command(label="About", command=lambda: placeholder_action("About"))
-        help_menu.add_command(label="Shortcuts", command=lambda: placeholder_action("Shortcuts"))
-        menubar.add_cascade(label="Help", menu=help_menu)
-
-        self.root.config(menu=menubar)
+        menubar_callbacks = {
+            "select_files": self.select_files,
+            "select_folder": self.select_folder,
+            "select_destination": self.select_destination,
+            "swap_view": lambda: self.viewer.toggle_layout_swap(),
+            "toggle_heatmap": lambda: self.viewer.toggle_heatmap(),
+            "reset_view": self.reset_view,
+            "about_view_action": lambda: show_info_dialog(self.root, "About", ABOUT_DIALOG),
+            "shortcuts_view_action": lambda: show_info_dialog(self.root, "Shortcuts", SHORTCUT_DIALOG)
+        }
+        self.menubar = Menubar(self.root, menubar_callbacks)
 
     def _setup_top_bar(self):
-        top_frame = ttk.Frame(self.root, padding=10)
-        top_frame.pack(fill=tk.X)
-
-        src_dest_frame = ttk.LabelFrame(top_frame, text="Source & Destination Selection", padding=10)
-        src_dest_frame.pack(side=tk.LEFT)
-
-        ttk.Button(src_dest_frame, text="Select Files", command=self.select_files).pack(side=tk.LEFT, padx=5)
-        ttk.Button(src_dest_frame, text="Select Folder", command=self.select_folder).pack(side=tk.LEFT, padx=5)
-
-        self.source_label = tk.Text(src_dest_frame, height=2, width=40, wrap=tk.WORD, bg="#f4f4f4", relief=tk.FLAT)
-        self.source_label.pack(side=tk.LEFT, padx=5)
-        disabled_text_view_updater(self.source_label, "Source: None selected")
-
-        ttk.Separator(src_dest_frame, orient=tk.VERTICAL).pack(side=tk.LEFT, fill=tk.Y, padx=10)
-
-        ttk.Button(src_dest_frame, text="Select Destination", command=self.select_destination).pack(side=tk.LEFT, padx=5)
-        self.dest_label = tk.Text(src_dest_frame, height=2, width=40, wrap=tk.WORD, bg="#f4f4f4", relief=tk.FLAT)
-        self.dest_label.pack(side=tk.LEFT, padx=5)
-        disabled_text_view_updater(self.dest_label, "Destination: None selected")
+        self.topbar = Topbar(self.root, self.select_files, self.select_folder, self.select_destination)
 
     def _setup_file_list(self, parent):
-        list_frame = ttk.Frame(parent)
-        list_frame.pack(side=tk.LEFT, fill=tk.Y, padx=(0, 10))
-        
-        ttk.Label(list_frame, text="Loaded Files:").pack(anchor=tk.W)
-        
-        # Initialize Treeview
-        self.file_tree = ttk.Treeview(list_frame, columns=("filename",), show="headings", height=20)
-        self.file_tree.heading("filename", text="File Name")
-        self.file_tree.column("filename", width=200, anchor=tk.W)
-        
-        # Configure a tag for files that have been compressed and saved
-        self.file_tree.tag_configure("compressed", foreground="gray", font=("Arial", 9, "overstrike"))
-        
-        self.file_tree.pack(side=tk.LEFT, fill=tk.Y, expand=True)
-        self.file_tree.bind('<<TreeviewSelect>>', self.on_file_select)
-
-        # Attach scrollbar
-        list_scroll = ttk.Scrollbar(list_frame, orient=tk.VERTICAL, command=self.file_tree.yview)
-        list_scroll.pack(side=tk.RIGHT, fill=tk.Y)
-        self.file_tree.config(yscrollcommand=list_scroll.set)
+        self.file_list = FileList(parent, self.source_manager.files, self.on_file_select)
 
     def _setup_viewer_panel(self, parent):
         viewer_container = ttk.Frame(parent)
@@ -149,44 +105,21 @@ class Workbench:
         # 3A. Compression Panel
         comp_group = ttk.LabelFrame(right_panel, text="Compression Settings", padding=10)
         comp_group.pack(fill=tk.X, pady=(0, 10))
-
-        q_row = ttk.Frame(comp_group)
-        q_row.pack(fill=tk.X, pady=4)
-        ttk.Label(q_row, text="Quality:", width=10).pack(side=tk.LEFT)
-        self.quality_cb = ttk.Combobox(q_row, values=[str(i) for i in range(10, 101, 5)], width=12, state="readonly")
-        self.quality_cb.set("70")
-        self.quality_cb.pack(side=tk.LEFT, padx=5)
-
-        fmt_row = ttk.Frame(comp_group)
-        fmt_row.pack(fill=tk.X, pady=4)
-        ttk.Label(fmt_row, text="Format:", width=10).pack(side=tk.LEFT)
-        self.format_cb = ttk.Combobox(fmt_row, values=["JPEG", "WEBP"], width=12, state="readonly")
-        self.format_cb.set("JPEG")
-        self.format_cb.pack(side=tk.LEFT, padx=5)
-
-        opt_row = ttk.Frame(comp_group)
-        opt_row.pack(fill=tk.X, pady=4)
-        self.optimize_var = tk.BooleanVar(value=True)
-        ttk.Checkbutton(opt_row, text="Optimize Output", variable=self.optimize_var).pack(side=tk.LEFT)
-
-        btn_row = ttk.Frame(comp_group)
-        btn_row.pack(fill=tk.X, pady=(10, 0))
-        ttk.Button(btn_row, text="Try", command=self.apply_compression_preview, width=10).pack(side=tk.LEFT, padx=2)
-        ttk.Button(btn_row, text="Save", command=self.save_current_image, width=10).pack(side=tk.RIGHT, padx=2)
+        self.compression_controller = CompressionController(comp_group, self.on_try, self.on_save)
 
         # 3B. Current Stats Panel
         curr_group = ttk.LabelFrame(right_panel, text="Current File Stats & Metrics", padding=10)
         curr_group.pack(fill=tk.X, pady=(0, 10))
-        
-        self.curr_stats_text = tk.Text(curr_group, height=10, width=38, wrap=tk.WORD, bg="#f4f4f4", relief=tk.FLAT)
+
+        self.curr_stats_text = DisabledText(curr_group, height=10, width=38)
         self.curr_stats_text.pack(fill=tk.BOTH)
-        disabled_text_view_updater(self.curr_stats_text, "No file is selected.")
+        self.curr_stats_text.set_text("No file is selected.")
 
         # 3C. Overall Stats Panel
         overall_group = ttk.LabelFrame(right_panel, text="Overall Session Stats", padding=10)
         overall_group.pack(fill=tk.BOTH, expand=True)
 
-        self.overall_stats_text = tk.Text(overall_group, height=9, width=38, wrap=tk.WORD, bg="#f4f4f4", relief=tk.FLAT)
+        self.overall_stats_text = DisabledText(overall_group, height=9, width=38)
         self.overall_stats_text.pack(fill=tk.BOTH, expand=True)
         self.update_overall_stats_display()
 
@@ -196,75 +129,48 @@ class Workbench:
         self.bottom_stats_label = ttk.Label(bottom_frame, text="Status: Ready. Please select source files or a folder.", font=("Arial", 9))
         self.bottom_stats_label.pack(side=tk.LEFT)
 
+    def on_source_changed(self, source_mode, source_dir):
+        self.topbar.set_source_label(source_label_helper(source_mode, source_dir, len(self.source_manager.files)))
+        self.file_list.populate()
+
+    def on_destination_changed(self, dir_path):
+        self.topbar.set_destination_label(dir_path)
+
     def select_files(self):
-        file_paths = filedialog.askopenfilenames(filetypes=[("Image Files", "*.jpg *.jpeg *.png *.webp")])
-        if file_paths:
-            self.source_mode = "files"
-            self.source_dir = ""
-            # self.source_label.config(text=f"{len(file_paths)} files selected")
-            disabled_text_view_updater(self.source_label, f"{len(file_paths)} files selected")
-
-            self.file_items = [{'path': p, 'compressed': False, 'rel_path': os.path.basename(p)} for p in file_paths]
-            self.populate_file_list()
-
+        self.source_manager.select_files()
+    
     def select_folder(self):
-        dir_path = filedialog.askdirectory()
-        if dir_path:
-            self.source_mode = "folder"
-            self.source_dir = dir_path
-            disabled_text_view_updater(self.source_label, dir_path)
-
-            self.file_items = []
-            for root, _, files in os.walk(dir_path):
-                for file in files:
-                    if file.lower().endswith(('.jpg', '.jpeg', '.png', '.webp')):
-                        full_p = os.path.join(root, file)
-                        rel_p = os.path.relpath(full_p, dir_path)
-                        self.file_items.append({'path': full_p, 'rel_path': rel_p})
-            self.populate_file_list()
+        self.source_manager.select_folder()
 
     def select_destination(self):
-        dir_path = filedialog.askdirectory()
-        if dir_path:
-            self.dest_dir = dir_path
-            disabled_text_view_updater(self.dest_label, dir_path)
+        self.source_manager.select_destination()
 
-    def populate_file_list(self):
-        for item_id in self.file_tree.get_children():
-            self.file_tree.delete(item_id)
-            
-        # Insert files and apply tags based on their status
-        for item in self.file_items:
-            # Check if the item is already compressed (adjust key to match your dictionary structure)
-            tags = ("compressed",) if item.get('is_compressed', False) else ()
-            
-            self.file_tree.insert("", "end", values=(item['rel_path'],), tags=tags)
-            
-        # Select the first item if items exist
-        # children = self.file_tree.get_children()
-        # if children:
-        #     first_item_id = children[0]
-        #     self.file_tree.selection_set(first_item_id)
-        #     self.load_current_item(0)
-
-    def on_file_select(self, event):
-        selected_items = self.file_tree.selection()
-        if selected_items:
-            item_id = selected_items[0]
-            index = self.file_tree.index(item_id)
-            self.load_current_item(index)
+    def on_file_select(self, index):
+        # selected_items = self.file_list.tree.selection()
+        # if selected_items:
+        #     item_id = selected_items[0]
+        #     index = self.file_list.tree.index(item_id)
+        #     self.load_current_item(index)
+        print(index)
+        self.load_current_item(index)
 
     def load_current_item(self, index):
         self.current_index = index
-        item = self.file_items[index]
+        item = self.source_manager.files[index]
         self.rotation_angle = 0
         self.bottom_stats_label.config(text=f"Status: Loading {item['rel_path']}...")
         self.run_processing(item['path'])
 
+    def on_try(self, quality, img_format, optimize):
+        print("trying")
+
+    def on_save(self):
+        print("saving")
+
     def apply_compression_preview(self):
-        if not self.file_items:
+        if not self.source_manager.files:
             return
-        item = self.file_items[self.current_index]
+        item = self.source_manager.files[self.current_index]
         self.bottom_stats_label.config(text=f"Status: Compressing {item['rel_path']}...")
 
         self.run_processing(item['path'])
@@ -272,9 +178,7 @@ class Workbench:
     def run_processing(self, file_path):
         self.viewer.start_progress()
 
-        quality = int(self.quality_cb.get())
-        img_format = self.format_cb.get()
-        optimize = self.optimize_var.get()
+        quality, img_format, optimize = self.compression_controller.get_compression_parameters()
 
         future = self.executor.submit(
             ImageProcessor.process_image, 
@@ -403,10 +307,12 @@ class Workbench:
         self.bottom_stats_label.config(text=f"Saved successfully: {target_rel_path}")
 
     def update_current_stats(self):
-        item = self.file_items[self.current_index]
+        item = self.source_manager.files[self.current_index]
         orig_size = os.path.getsize(item['path'])
         comp_size = self.current_comp_size
         saved_pct = (1 - (comp_size / orig_size)) * 100 if orig_size > 0 else 0
+
+        quality, img_format, optimize = self.compression_controller.get_compression_parameters()
 
         psnr_str = f"{self.current_psnr:.2f} dB" if not math.isinf(self.current_psnr) else "Inf dB"
 
@@ -417,9 +323,10 @@ class Workbench:
             f"Saved Space: {saved_pct:.1f}%\n"
             f"PSNR: {psnr_str}\n"
             f"SSIM: {self.current_ssim:.4f}\n"
-            f"Config: {self.format_cb.get()} @ Q={self.quality_cb.get()}"
+            f"Config: {img_format} @ Q={quality}"
         )
-        disabled_text_view_updater(self.curr_stats_text, info)
+        # disabled_text_view_updater(self.curr_stats_text, info)
+        self.curr_stats_text.set_text(info)
 
     def update_overall_stats_display(self):
         count = len(self.saved_session_records)
@@ -442,4 +349,4 @@ class Workbench:
                 f"Mean Compression: {mean_pct:.1f}%\n"
                 f"Median Compression: {median_pct:.1f}%"
             )
-        disabled_text_view_updater(self.overall_stats_text, summary)
+        self.overall_stats_text.set_text(summary)

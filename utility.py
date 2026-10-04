@@ -1,9 +1,7 @@
-import tkinter as tk
 
-def disabled_text_view_updater(text_view, text):
-    text_view.config(state=tk.NORMAL)
-    text_view.delete("1.0", tk.END)
-    text_view.insert(tk.END, text)
-    text_view.config(state=tk.DISABLED)
-
-
+def source_label_helper(mode, dir, files_array_length):
+    """Handles formatting and UI updates based on what mode we are in."""
+    if mode == "files":
+        return f"{files_array_length} files selected"
+    elif mode == "folder":
+        return dir
