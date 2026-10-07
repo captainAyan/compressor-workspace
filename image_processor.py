@@ -11,7 +11,7 @@ class ImageProcessor:
             with Image.open(file_path) as img:
                 rotated = img.rotate(rotation_angle, expand=True)
                 save_format = "JPEG" if format_type == "JPEG" else format_type
-                
+
                 if save_format == "JPEG" and rotated.mode in ("RGBA", "P"):
                     img_to_save = rotated.convert("RGB")
                 else:
@@ -20,15 +20,15 @@ class ImageProcessor:
                 buffer = io.BytesIO()
                 img_to_save.save(buffer, format=save_format, quality=quality, optimize=optimize)
                 buffer.seek(0)
-                
+
                 comp_img = Image.open(buffer).copy()
-                
+
                 # Compute and cache raw grayscale difference for instant multiplier updates
                 orig_rgb = rotated.convert("RGB")
                 comp_rgb = comp_img.convert("RGB")
                 if comp_rgb.size != orig_rgb.size:
                     comp_rgb = comp_rgb.resize(orig_rgb.size, Image.Resampling.BILINEAR)
-                
+
                 diff = ImageChops.difference(orig_rgb, comp_rgb)
                 raw_diff_gray = diff.convert("L")
 

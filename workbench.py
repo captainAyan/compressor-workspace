@@ -31,9 +31,7 @@ class Workbench:
         self.current_index = 0
         self.source_manager = SourceManager(self.on_source_changed, self.on_destination_changed)
 
-        self.zoom_scale = 1.0
         self.rotation_angle = 0
-        self.heatmap_multiplier = 5.0
 
         self.current_comp_buffer = None
         self.current_comp_size = 0
@@ -87,14 +85,7 @@ class Workbench:
         viewer_container = ttk.Frame(parent)
         viewer_container.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=5)
 
-        self.viewer = Viewer(
-            viewer_container, 
-            on_zoom_change=self.on_zoom_change, 
-            on_rotate=self.rotate_image, 
-            on_reset=self.reset_view,
-            on_toggle_heatmap=self.render_images,
-            on_heatmap_gain_change=self.on_heatmap_gain_change
-        )
+        self.viewer = Viewer(viewer_container, on_rotate=self.on_rotate_image, on_reset=self.on_reset_view)
         self.viewer.pack(fill=tk.BOTH, expand=True)
 
     def _setup_right_panel(self, parent):
@@ -126,7 +117,8 @@ class Workbench:
     def _setup_bottom_bar(self):
         bottom_frame = ttk.Frame(self.root, padding=5)
         bottom_frame.pack(fill=tk.X, padx=10, pady=(0, 5))
-        self.bottom_stats_label = ttk.Label(bottom_frame, text="Status: Ready. Please select source files or a folder.", font=("Arial", 9))
+        self.bottom_stats_label = ttk.Label(
+            bottom_frame, text="Status: Ready. Please select source files or a folder.", font=("Arial", 9))
         self.bottom_stats_label.pack(side=tk.LEFT)
 
     def on_source_changed(self, source_mode, source_dir):
@@ -146,12 +138,6 @@ class Workbench:
         self.source_manager.select_destination()
 
     def on_file_select(self, index):
-        # selected_items = self.file_list.tree.selection()
-        # if selected_items:
-        #     item_id = selected_items[0]
-        #     index = self.file_list.tree.index(item_id)
-        #     self.load_current_item(index)
-        print(index)
         self.load_current_item(index)
 
     def load_current_item(self, index):
@@ -162,7 +148,7 @@ class Workbench:
         self.run_processing(item['path'])
 
     def on_try(self, quality, img_format, optimize):
-        print("trying")
+        self.apply_compression_preview()
 
     def on_save(self):
         print("saving")
@@ -184,9 +170,9 @@ class Workbench:
             ImageProcessor.process_image, 
             file_path, self.rotation_angle, img_format, quality, optimize
         )
-        future.add_done_callback(lambda f: self.root.after(0, lambda: self._on_image_loaded(f)))
+        future.add_done_callback(lambda f: self.root.after(0, lambda: self.on_image_loaded(f)))
 
-    def _on_image_loaded(self, future):
+    def on_image_loaded(self, future):
         buffer, comp_size, comp_img, raw_diff_gray, rotated_orig, psnr, ssim, error = future.result()
         if error:
             messagebox.showerror("Error", f"Failed to process image: {error}")
@@ -200,72 +186,24 @@ class Workbench:
         self.current_psnr = psnr
         self.current_ssim = ssim
 
-        self.render_images()
+        self.viewer.set_images(self.rotated_orig_img, self.comp_pil_img, self.raw_diff_gray)
+        self.viewer.render_images()
+        self.viewer.stop_progress()
+
         self.update_current_stats()
         self.bottom_stats_label.config(text="Status: Ready.")
 
-        self.viewer.stop_progress()
-
-    def render_images(self):
-        if not hasattr(self, 'rotated_orig_img'):
-            return
-
-        canvas_width = max(self.viewer.canvas_a.winfo_width(), 400)
-        canvas_height = max(self.viewer.canvas_a.winfo_height(), 400)
-
-        w_ratio = canvas_width / self.rotated_orig_img.width
-        h_ratio = canvas_height / self.rotated_orig_img.height
-        base_scale = min(w_ratio, h_ratio, 1.0)
-
-        current_scale = base_scale * self.zoom_scale
-        new_w = int(self.rotated_orig_img.width * current_scale)
-        new_h = int(self.rotated_orig_img.height * current_scale)
-
-        orig_res = self.rotated_orig_img.resize((new_w, new_h), Image.Resampling.LANCZOS)
-        
-        if self.viewer.showing_heatmap:
-            # Generate heatmap instantly from cached difference buffer using slider multiplier
-            heatmap_img = ImageProcessor.render_heatmap(self.raw_diff_gray, self.heatmap_multiplier)
-            preview_res = heatmap_img.resize((new_w, new_h), Image.Resampling.LANCZOS)
-        else:
-            preview_res = self.comp_pil_img.resize((new_w, new_h), Image.Resampling.LANCZOS)
-
-        self.orig_tk = ImageTk.PhotoImage(orig_res)
-        self.preview_tk = ImageTk.PhotoImage(preview_res)
-
-        self.viewer.canvas_a.delete("all")
-        self.viewer.canvas_b.delete("all")
-
-        if self.viewer.swapped:
-            self.viewer.canvas_a.create_image(0, 0, anchor=tk.NW, image=self.preview_tk)
-            self.viewer.canvas_b.create_image(0, 0, anchor=tk.NW, image=self.orig_tk)
-        else:
-            self.viewer.canvas_a.create_image(0, 0, anchor=tk.NW, image=self.orig_tk)
-            self.viewer.canvas_b.create_image(0, 0, anchor=tk.NW, image=self.preview_tk)
-
-        self.viewer.canvas_a.config(scrollregion=(0, 0, new_w, new_h))
-        self.viewer.canvas_b.config(scrollregion=(0, 0, new_w, new_h))
-
-    def on_zoom_change(self, scale):
-        self.zoom_scale = scale
-        self.render_images()
-
-    def on_heatmap_gain_change(self, gain):
-        self.heatmap_multiplier = gain
-        if self.viewer.showing_heatmap:
-            self.render_images()
-
-    def rotate_image(self, angle_delta):
+    def on_rotate_image(self, angle_delta):
         self.rotation_angle = (self.rotation_angle + angle_delta) % 360
         self.apply_compression_preview()
 
-    def reset_view(self):
-        self.zoom_scale = 1.0
-        self.viewer.zoom_slider.set(1.0)
-        self.heatmap_multiplier = 5.0
-        self.viewer.gain_slider.set(5.0)
+    def on_reset_view(self):
         self.rotation_angle = 0
         self.apply_compression_preview()
+
+    def reset_view(self):
+        self.viewer.internal_reset()
+        self.on_reset_view()
 
     def save_current_image(self):
         if not self.dest_dir:
@@ -325,7 +263,6 @@ class Workbench:
             f"SSIM: {self.current_ssim:.4f}\n"
             f"Config: {img_format} @ Q={quality}"
         )
-        # disabled_text_view_updater(self.curr_stats_text, info)
         self.curr_stats_text.set_text(info)
 
     def update_overall_stats_display(self):
