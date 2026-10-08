@@ -5,7 +5,7 @@ from tkinter import ttk
 class FileList():
     def __init__(self, parent, files, on_file_select_cb):
         self.parent = parent
-        self.files = files
+        self.files = files # this is the reference to the source manager's files array
         self.on_file_select_cb = on_file_select_cb
         self.create_widget()
 
@@ -19,7 +19,7 @@ class FileList():
         self.tree.heading("filename", text="File Name")
         self.tree.column("filename", width=200, anchor=tk.W)
         
-        self.tree.tag_configure("compressed", foreground="green", font=("Arial", 9, "overstrike"))
+        self.tree.tag_configure("compressed", foreground="white", background="#70CF00", font=("Arial", 9, "overstrike"))
 
         self.tree.pack(side=tk.LEFT, fill=tk.Y, expand=True)
         self.tree.bind('<<TreeviewSelect>>', self._handle_tree_selection)
@@ -51,3 +51,23 @@ class FileList():
             tags = ("compressed",) if item.get('is_compressed', False) else ()
             self.insert(item["rel_path"], tags)
  
+    def select(self, index):
+        if index < len(self.tree.get_children()):
+            self.tree.selection_set(self.tree.get_children()[index])
+            self.tree.focus(self.tree.get_children()[index])
+
+    def mark_as_compressed(self, index):
+        """Marks the file at the given index as compressed by updating its tag."""
+        children = self.tree.get_children()
+        if 0 <= index < len(children):
+            item_id = children[index]
+            # Add the 'compressed' tag while preserving any existing tags if needed
+            current_tags = list(self.tree.item(item_id, "tags"))
+            if "compressed" not in current_tags:
+                current_tags.append("compressed")
+            self.tree.item(item_id, tags=tuple(current_tags))
+            
+            # Also update the underlying file data model if it exists
+            if index < len(self.files):
+                self.files[index]['is_compressed'] = True
+

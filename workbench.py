@@ -61,6 +61,8 @@ class Workbench:
         self.root.bind("<Control-Shift-F>", lambda event: self.select_files())
         self.root.bind("<Control-f>", lambda event: self.select_folder())
         self.root.bind("<Control-d>", lambda event: self.select_destination())
+        self.root.bind("<Control-Left>", lambda event: self.navigate_files(-1))
+        self.root.bind("<Control-Right>", lambda event: self.navigate_files(1))
 
     def _setup_menubar(self):
         menubar_callbacks = {
@@ -130,12 +132,24 @@ class Workbench:
 
     def select_files(self):
         self.source_manager.select_files()
+        self.file_list.select(0)
     
     def select_folder(self):
         self.source_manager.select_folder()
+        self.file_list.select(0)
 
     def select_destination(self):
         self.source_manager.select_destination()
+
+    def navigate_files(self, direction):
+        if not (files := self.file_list.files):
+            return
+
+        new_idx = max(0, min(self.current_index + direction, len(files) - 1))
+
+        if new_idx != self.current_index:
+            self.current_index = new_idx
+            self.file_list.select(self.current_index)
 
     def on_file_select(self, index):
         self.load_current_item(index)
@@ -151,7 +165,7 @@ class Workbench:
         self.apply_compression_preview()
 
     def on_save(self):
-        print("saving")
+        self.save_current_image()
 
     def apply_compression_preview(self):
         if not self.source_manager.files:
@@ -165,6 +179,7 @@ class Workbench:
         self.viewer.start_progress()
 
         quality, img_format, optimize = self.compression_controller.get_compression_parameters()
+        self.current_preview_image_format = img_format
 
         future = self.executor.submit(
             ImageProcessor.process_image, 
@@ -206,19 +221,19 @@ class Workbench:
         self.on_reset_view()
 
     def save_current_image(self):
-        if not self.dest_dir:
+        if not self.source_manager.dest_dir:
             messagebox.showwarning("Destination Missing", "Please select a destination folder first!")
             return
         if not self.current_comp_buffer:
             messagebox.showwarning("No Data", "No compressed preview buffer available. Click 'Try' first.")
             return
 
-        item = self.file_items[self.current_index]
+        item = self.source_manager.files[self.current_index]
         base_name, _ = os.path.splitext(item['rel_path'])
-        new_ext = ".webp" if self.format_cb.get() == "WEBP" else ".jpg"
+        new_ext = ".webp" if self.current_preview_image_format == "WEBP" else ".jpg"
         target_rel_path = base_name + new_ext
 
-        dest_path = os.path.join(self.dest_dir, target_rel_path)
+        dest_path = os.path.join(self.source_manager.dest_dir, target_rel_path)
         os.makedirs(os.path.dirname(dest_path), exist_ok=True)
 
         def background_save():
@@ -242,6 +257,7 @@ class Workbench:
         })
 
         self.update_overall_stats_display()
+        self.file_list.mark_as_compressed(self.current_index)
         self.bottom_stats_label.config(text=f"Saved successfully: {target_rel_path}")
 
     def update_current_stats(self):
