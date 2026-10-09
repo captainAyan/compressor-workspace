@@ -1,6 +1,8 @@
 import tkinter as tk
 from tkinter import ttk
 
+from strings import GREEN_COLOUR
+
 
 class FileList():
     def __init__(self, parent, files, on_file_select_cb):
@@ -19,7 +21,7 @@ class FileList():
         self.tree.heading("filename", text="File Name")
         self.tree.column("filename", width=200, anchor=tk.W)
         
-        self.tree.tag_configure("compressed", foreground="white", background="#70CF00", font=("Arial", 9, "overstrike"))
+        self.tree.tag_configure("compressed", foreground="white", background=GREEN_COLOUR, font=("Arial", 9, "overstrike"))
 
         self.tree.pack(side=tk.LEFT, fill=tk.Y, expand=True)
         self.tree.bind('<<TreeviewSelect>>', self._handle_tree_selection)

@@ -9,4 +9,5 @@ Ctrl + Left Arrow: Previous File
 Ctrl + Right Arrow: Next File
 """
 
+GREEN_COLOUR = "#70CF00"
 

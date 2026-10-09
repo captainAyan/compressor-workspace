@@ -14,6 +14,9 @@ class Menubar:
         file_menu.add_command(label="Select Folder", accelerator="Ctrl+F", command=self.callbacks.get("select_folder"))
         file_menu.add_command(label="Select Destination", accelerator="Ctrl+D", command=self.callbacks.get("select_destination"))
         file_menu.add_separator()
+        file_menu.add_command(label="Save", accelerator="Ctrl+S", command=self.callbacks.get("save"))
+        file_menu.add_command(label="Save As", accelerator="Ctrl+Shift+S", command=self.callbacks.get("save_as"))
+        file_menu.add_separator()
         file_menu.add_command(label="Quit", command=self.parent.quit)
         menubar.add_cascade(label="File", menu=file_menu)
 

@@ -3,10 +3,11 @@ from tkinter import ttk
 
 
 class CompressionController():
-    def __init__(self, parent, on_try_cb, on_save_cb):
+    def __init__(self, parent, on_try_cb, on_save_cb, on_save_as_cb):
         self.parent = parent
         self.on_try_cb = on_try_cb
         self.on_save_cb = on_save_cb
+        self.on_save_as_cb = on_save_as_cb
 
         self.create_widget()
 
@@ -44,5 +45,6 @@ class CompressionController():
                    width=10,
                    command=lambda:self.on_try_cb(*self.get_compression_parameters())
                    ).pack(side=tk.LEFT, padx=2)
+        ttk.Button(btn_row, text="Save As", command=self.on_save_as_cb, width=10).pack(side=tk.RIGHT, padx=2)
         ttk.Button(btn_row, text="Save", command=self.on_save_cb, width=10).pack(side=tk.RIGHT, padx=2)
 

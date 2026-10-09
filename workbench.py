@@ -55,12 +55,16 @@ class Workbench:
         self._setup_bottom_bar()
 
     def _setup_shortcuts(self):
-        self.root.bind("<Alt-s>", lambda event: self.viewer.toggle_layout_swap())
-        self.root.bind("<Alt-h>", lambda event: self.viewer.toggle_heatmap())
-        self.root.bind("<Control-r>", lambda event: self.reset_view())
         self.root.bind("<Control-Shift-F>", lambda event: self.select_files())
         self.root.bind("<Control-f>", lambda event: self.select_folder())
         self.root.bind("<Control-d>", lambda event: self.select_destination())
+        self.root.bind("<Control-s>", lambda event: self.save_current_image())
+        self.root.bind("<Control-Shift-S>", lambda event: self.save_as_current_image())
+
+        self.root.bind("<Alt-s>", lambda event: self.viewer.toggle_layout_swap())
+        self.root.bind("<Alt-h>", lambda event: self.viewer.toggle_heatmap())
+        self.root.bind("<Control-r>", lambda event: self.reset_view())
+
         self.root.bind("<Control-Left>", lambda event: self.navigate_files(-1))
         self.root.bind("<Control-Right>", lambda event: self.navigate_files(1))
 
@@ -69,9 +73,13 @@ class Workbench:
             "select_files": self.select_files,
             "select_folder": self.select_folder,
             "select_destination": self.select_destination,
+            "save":self.save_current_image,
+            "save_as": self.save_as_current_image,
+            
             "swap_view": lambda: self.viewer.toggle_layout_swap(),
             "toggle_heatmap": lambda: self.viewer.toggle_heatmap(),
             "reset_view": self.reset_view,
+
             "about_view_action": lambda: show_info_dialog(self.root, "About", ABOUT_DIALOG),
             "shortcuts_view_action": lambda: show_info_dialog(self.root, "Shortcuts", SHORTCUT_DIALOG)
         }
@@ -98,7 +106,7 @@ class Workbench:
         # 3A. Compression Panel
         comp_group = ttk.LabelFrame(right_panel, text="Compression Settings", padding=10)
         comp_group.pack(fill=tk.X, pady=(0, 10))
-        self.compression_controller = CompressionController(comp_group, self.on_try, self.on_save)
+        self.compression_controller = CompressionController(comp_group, self.on_try, self.on_save, self.on_save_as)
 
         # 3B. Current Stats Panel
         curr_group = ttk.LabelFrame(right_panel, text="Current File Stats & Metrics", padding=10)
@@ -166,6 +174,9 @@ class Workbench:
 
     def on_save(self):
         self.save_current_image()
+
+    def on_save_as(self):
+        self.save_as_current_image()
 
     def apply_compression_preview(self):
         if not self.source_manager.files:
@@ -236,13 +247,41 @@ class Workbench:
         dest_path = os.path.join(self.source_manager.dest_dir, target_rel_path)
         os.makedirs(os.path.dirname(dest_path), exist_ok=True)
 
-        def background_save():
-            with open(dest_path, "wb") as f:
-                f.write(self.current_comp_buffer.getvalue())
-            return dest_path
-
-        future = self.executor.submit(background_save)
+        future = self.executor.submit(lambda: self.background_save(dest_path))
         future.add_done_callback(lambda f: self.root.after(0, lambda: self._on_save_complete(f, item, target_rel_path)))
+
+    def save_as_current_image(self):
+        if not self.current_comp_buffer:
+            messagebox.showwarning("No Data", "No compressed preview buffer available. Click 'Try' first.")
+            return
+
+        item = self.source_manager.files[self.current_index]
+        
+        default_ext = ".webp" if self.current_preview_image_format == "WEBP" else ".jpg"
+        allowed_filetypes = ("WebP Image", "*.webp") if self.current_preview_image_format == "WEBP" else ("JPEG Image", "*.jpg;*.jpeg")
+        base_name, _ = os.path.splitext(os.path.basename(item['rel_path']))
+        initial_file = base_name + default_ext
+
+        dest_path = filedialog.asksaveasfilename(
+            initialfile=initial_file,
+            defaultextension=default_ext,
+            filetypes=[allowed_filetypes, ("All Files", "*.*")]
+        )
+
+        if not dest_path: return
+
+        target_rel_path = os.path.basename(dest_path)
+
+        # Extract relative path if inside dest_dir, or use absolute/filename for UI handling
+        future = self.executor.submit(lambda: self.background_save(dest_path))
+        future.add_done_callback(
+            lambda f: self.root.after(0, lambda: self._on_save_complete(f, item, target_rel_path))
+        )
+
+    def background_save(self, dest_path):
+        with open(dest_path, "wb") as f:
+            f.write(self.current_comp_buffer.getvalue())
+        return dest_path
 
     def _on_save_complete(self, future, item, target_rel_path):
         saved_path = future.result()
