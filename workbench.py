@@ -18,6 +18,7 @@ from components.dialog import show_info_dialog
 from components.disabled_text import DisabledText
 from components.compression_controller import CompressionController
 from components.file_list import FileList
+from components.statusbar import Statusbar
 
 
 class Workbench:
@@ -127,9 +128,8 @@ class Workbench:
     def _setup_bottom_bar(self):
         bottom_frame = ttk.Frame(self.root, padding=5)
         bottom_frame.pack(fill=tk.X, padx=10, pady=(0, 5))
-        self.bottom_stats_label = ttk.Label(
-            bottom_frame, text="Status: Ready. Please select source files or a folder.", font=("Arial", 9))
-        self.bottom_stats_label.pack(side=tk.LEFT)
+        self.statusbar = Statusbar(bottom_frame)
+        self.statusbar.set_status("Status: Ready. Please select source files or a folder.", Statusbar.SUCCESS)
 
     def on_source_changed(self, source_mode, source_dir):
         self.topbar.set_source_label(source_label_helper(source_mode, source_dir, len(self.source_manager.files)))
@@ -166,7 +166,7 @@ class Workbench:
         self.current_index = index
         item = self.source_manager.files[index]
         self.rotation_angle = 0
-        self.bottom_stats_label.config(text=f"Status: Loading {item['rel_path']}...")
+        self.statusbar.set_status(f"Status: Loading {item['rel_path']}...", Statusbar.DEFAULT)
         self.run_processing(item['path'])
 
     def on_try(self, quality, img_format, optimize):
@@ -182,12 +182,13 @@ class Workbench:
         if not self.source_manager.files:
             return
         item = self.source_manager.files[self.current_index]
-        self.bottom_stats_label.config(text=f"Status: Compressing {item['rel_path']}...")
+        self.statusbar.set_status(f"Status: Compressing {item['rel_path']}...", Statusbar.DEFAULT)
 
         self.run_processing(item['path'])
 
     def run_processing(self, file_path):
         self.viewer.start_progress()
+        self.statusbar.set_status("Compressing: DO NOT SELECT another image during the compression process", Statusbar.WARNING)
 
         quality, img_format, optimize = self.compression_controller.get_compression_parameters()
         self.current_preview_image_format = img_format
@@ -202,6 +203,7 @@ class Workbench:
         buffer, comp_size, comp_img, raw_diff_gray, rotated_orig, psnr, ssim, error = future.result()
         if error:
             messagebox.showerror("Error", f"Failed to process image: {error}")
+            self.statusbar.set_status(f"Error: Failed to process image: {error}", Statusbar.ERROR)
             return
 
         self.current_comp_buffer = buffer
@@ -217,7 +219,8 @@ class Workbench:
         self.viewer.stop_progress()
 
         self.update_current_stats()
-        self.bottom_stats_label.config(text="Status: Ready.")
+        self.statusbar.set_status("Status: Ready.", Statusbar.SUCCESS)
+
 
     def on_rotate_image(self, angle_delta):
         self.rotation_angle = (self.rotation_angle + angle_delta) % 360
@@ -234,9 +237,11 @@ class Workbench:
     def save_current_image(self):
         if not self.source_manager.dest_dir:
             messagebox.showwarning("Destination Missing", "Please select a destination folder first!")
+            self.statusbar.set_status("Destination Missing: Please select a destination folder first!", Statusbar.ERROR)
             return
         if not self.current_comp_buffer:
             messagebox.showwarning("No Data", "No compressed preview buffer available. Click 'Try' first.")
+            self.statusbar.set_status("No Data: No compressed preview buffer available. Click 'Try' first.", Statusbar.ERROR)
             return
 
         item = self.source_manager.files[self.current_index]
@@ -253,6 +258,7 @@ class Workbench:
     def save_as_current_image(self):
         if not self.current_comp_buffer:
             messagebox.showwarning("No Data", "No compressed preview buffer available. Click 'Try' first.")
+            self.statusbar.set_status("No Data: No compressed preview buffer available. Click 'Try' first.", Statusbar.ERROR)
             return
 
         item = self.source_manager.files[self.current_index]
@@ -297,7 +303,7 @@ class Workbench:
 
         self.update_overall_stats_display()
         self.file_list.mark_as_compressed(self.current_index)
-        self.bottom_stats_label.config(text=f"Saved successfully: {target_rel_path}")
+        self.statusbar.set_status(f"Saved successfully: {target_rel_path}", Statusbar.SUCCESS)
 
     def update_current_stats(self):
         item = self.source_manager.files[self.current_index]

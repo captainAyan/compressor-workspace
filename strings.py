@@ -10,4 +10,5 @@ Ctrl + Right Arrow: Next File
 """
 
 GREEN_COLOUR = "#70CF00"
-
+RED_COLOUR = "#cf4500"
+YELLOW_COLOUR = "#e0a824"
