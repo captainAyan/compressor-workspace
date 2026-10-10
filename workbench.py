@@ -132,7 +132,12 @@ class Workbench:
         self.statusbar.set_status("Status: Ready. Please select source files or a folder.", Statusbar.SUCCESS)
 
     def on_source_changed(self, source_mode, source_dir):
-        self.topbar.set_source_label(source_label_helper(source_mode, source_dir, len(self.source_manager.files)))
+        if source_mode == "files":
+            t = f"{len(self.source_manager.files)} files selected"
+        elif source_mode == "folder":
+            t = source_dir
+
+        self.topbar.set_source_label(t)
         self.file_list.populate()
 
     def on_destination_changed(self, dir_path):
@@ -166,7 +171,7 @@ class Workbench:
         self.current_index = index
         item = self.source_manager.files[index]
         self.rotation_angle = 0
-        self.statusbar.set_status(f"Status: Loading {item['rel_path']}...", Statusbar.DEFAULT)
+        self.statusbar.set_status(f"Compressing: {item['rel_path']}...", Statusbar.WARNING)
         self.run_processing(item['path'])
 
     def on_try(self, quality, img_format, optimize):
@@ -182,13 +187,12 @@ class Workbench:
         if not self.source_manager.files:
             return
         item = self.source_manager.files[self.current_index]
-        self.statusbar.set_status(f"Status: Compressing {item['rel_path']}...", Statusbar.DEFAULT)
+        self.statusbar.set_status(f"Compressing: {item['rel_path']}...", Statusbar.WARNING)
 
         self.run_processing(item['path'])
 
     def run_processing(self, file_path):
         self.viewer.start_progress()
-        self.statusbar.set_status("Compressing: DO NOT SELECT another image during the compression process", Statusbar.WARNING)
 
         quality, img_format, optimize = self.compression_controller.get_compression_parameters()
         self.current_preview_image_format = img_format

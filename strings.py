@@ -9,6 +9,6 @@ Ctrl + Left Arrow: Previous File
 Ctrl + Right Arrow: Next File
 """
 
-GREEN_COLOUR = "#70CF00"
-RED_COLOUR = "#cf4500"
-YELLOW_COLOUR = "#e0a824"
+GREEN_COLOUR = "#46b502"
+RED_COLOUR = "#ff3333"
+YELLOW_COLOUR = "#de7f12"

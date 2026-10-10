@@ -21,15 +21,14 @@ class Statusbar():
         self.bottom_stats_label.pack(fill=tk.X, expand=True, side=tk.LEFT)
 
     def set_status(self, text, type):
+        foreground = "white"
+
         if type == Statusbar.SUCCESS:
             background = GREEN_COLOUR
-            foreground = "white"
         elif type == Statusbar.ERROR:
             background = RED_COLOUR
-            foreground = "white"
         elif type == Statusbar.WARNING:
             background = YELLOW_COLOUR
-            foreground = "white"
         elif type == Statusbar.DEFAULT:
             background="SystemButtonFace"
             foreground="SystemButtonText"
