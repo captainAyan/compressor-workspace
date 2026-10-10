@@ -40,6 +40,9 @@ class Workbench:
         self.current_ssim = 0.0
         self.saved_session_records = []
 
+        self.current_preview_image_format = "JPEG"
+        self.current_preview_image_compression_quality = 0
+
         self._setup_ui()
         self._setup_shortcuts()
 
@@ -196,6 +199,7 @@ class Workbench:
 
         quality, img_format, optimize = self.compression_controller.get_compression_parameters()
         self.current_preview_image_format = img_format
+        self.current_preview_image_compression_quality = quality
 
         future = self.executor.submit(
             ImageProcessor.process_image, 
@@ -254,10 +258,7 @@ class Workbench:
         target_rel_path = base_name + new_ext
 
         dest_path = os.path.join(self.source_manager.dest_dir, target_rel_path)
-        os.makedirs(os.path.dirname(dest_path), exist_ok=True)
-
-        future = self.executor.submit(lambda: self.background_save(dest_path))
-        future.add_done_callback(lambda f: self.root.after(0, lambda: self._on_save_complete(f, item, target_rel_path)))
+        self._save_async(dest_path, item, target_rel_path)
 
     def save_as_current_image(self):
         if not self.current_comp_buffer:
@@ -265,11 +266,11 @@ class Workbench:
             self.statusbar.set_status("No Data: No compressed preview buffer available. Click 'Try' first.", Statusbar.ERROR)
             return
 
-        item = self.source_manager.files[self.current_index]
+        file_item = self.source_manager.files[self.current_index]
         
         default_ext = ".webp" if self.current_preview_image_format == "WEBP" else ".jpg"
         allowed_filetypes = ("WebP Image", "*.webp") if self.current_preview_image_format == "WEBP" else ("JPEG Image", "*.jpg;*.jpeg")
-        base_name, _ = os.path.splitext(os.path.basename(item['rel_path']))
+        base_name, _ = os.path.splitext(os.path.basename(file_item['rel_path']))
         initial_file = base_name + default_ext
 
         dest_path = filedialog.asksaveasfilename(
@@ -281,11 +282,19 @@ class Workbench:
         if not dest_path: return
 
         target_rel_path = os.path.basename(dest_path)
+        self._save_async(dest_path, file_item, target_rel_path)
 
-        # Extract relative path if inside dest_dir, or use absolute/filename for UI handling
+    def _save_async(self, dest_path, file_item, target_rel_path):
+        os.makedirs(os.path.dirname(dest_path), exist_ok=True)
         future = self.executor.submit(lambda: self.background_save(dest_path))
         future.add_done_callback(
-            lambda f: self.root.after(0, lambda: self._on_save_complete(f, item, target_rel_path))
+            lambda f: self.root.after(0, lambda: self
+                ._on_save_complete(f, 
+                                   file_item['path'], 
+                                   dest_path, 
+                                   target_rel_path,
+                                   self.current_preview_image_compression_quality, 
+                                   self.current_comp_size))
         )
 
     def background_save(self, dest_path):
@@ -293,16 +302,16 @@ class Workbench:
             f.write(self.current_comp_buffer.getvalue())
         return dest_path
 
-    def _on_save_complete(self, future, item, target_rel_path):
+    def _on_save_complete(self, future, original_path, dest_path, target_rel_path, quality, compressed_size):
         saved_path = future.result()
-        orig_size = os.path.getsize(item['path'])
-        comp_size = self.current_comp_size
-        pct_saved = (1 - (comp_size / orig_size)) * 100 if orig_size > 0 else 0
+        orig_size = os.path.getsize(original_path)
 
         self.saved_session_records.append({
-            'orig_size': orig_size,
-            'comp_size': comp_size,
-            'pct_saved': pct_saved
+            'original_file': original_path,
+            'output_file': dest_path,
+            'original_size': orig_size,
+            'compressed_size': compressed_size,
+            'quality': quality
         })
 
         self.update_overall_stats_display()
@@ -331,15 +340,21 @@ class Workbench:
         self.curr_stats_text.set_text(info)
 
     def update_overall_stats_display(self):
+        print(self.saved_session_records)
         count = len(self.saved_session_records)
         if count == 0:
             summary = "No files saved in this session yet."
         else:
-            total_orig = sum(r['orig_size'] for r in self.saved_session_records)
-            total_comp = sum(r['comp_size'] for r in self.saved_session_records)
+            total_orig = sum(r['original_size'] for r in self.saved_session_records)
+            total_comp = sum(r['compressed_size'] for r in self.saved_session_records)
             overall_pct = (1 - (total_comp / total_orig)) * 100 if total_orig > 0 else 0
             
-            percentages = [r['pct_saved'] for r in self.saved_session_records]
+            percentages = [
+                (1 - (r['compressed_size'] / r['original_size'])) * 100 
+                if r['original_size'] > 0 else 0 
+                for r in self.saved_session_records
+            ]
+
             mean_pct = statistics.mean(percentages)
             median_pct = statistics.median(percentages)
 
