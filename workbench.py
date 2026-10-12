@@ -110,7 +110,7 @@ class Workbench:
         # 3A. Compression Panel
         comp_group = ttk.LabelFrame(right_panel, text="Compression Settings", padding=10)
         comp_group.pack(fill=tk.X, pady=(0, 10))
-        self.compression_controller = CompressionController(comp_group, self.on_try, self.on_save, self.on_save_as)
+        self.compression_controller = CompressionController(comp_group, self.on_preview, self.on_save, self.on_save_as)
 
         # 3B. Current Stats Panel
         curr_group = ttk.LabelFrame(right_panel, text="Current File Stats & Metrics", padding=10)
@@ -158,41 +158,33 @@ class Workbench:
         self.source_manager.select_destination()
 
     def navigate_files(self, direction):
-        if not (files := self.file_list.files):
-            return
-
-        new_idx = max(0, min(self.current_index + direction, len(files) - 1))
-
-        if new_idx != self.current_index:
-            self.current_index = new_idx
-            self.file_list.select(self.current_index)
+        new_idx = max(0, min(self.current_index + direction, len(self.file_list.files) - 1))
+        self.file_list.select(new_idx)
 
     def on_file_select(self, index):
         self.load_current_item(index)
 
     def load_current_item(self, index):
         self.current_index = index
-        item = self.source_manager.files[index]
+        file_item = self.source_manager.files[index]
         self.rotation_angle = 0
-        self.statusbar.set_status(f"Compressing: {item['rel_path']}...", Statusbar.WARNING)
-        self.run_processing(item['path'])
+        self.statusbar.set_status(f"Compressing: {file_item['rel_path']}...", Statusbar.WARNING)
+        self.run_processing(file_item['path'])
 
-    def on_try(self, quality, img_format, optimize):
+    def on_preview(self, quality, img_format, optimize):
         self.apply_compression_preview()
 
-    def on_save(self):
+    def on_save(self, quality, img_format, optimize):
         self.save_current_image()
 
-    def on_save_as(self):
+    def on_save_as(self, quality, img_format, optimize):
         self.save_as_current_image()
 
     def apply_compression_preview(self):
-        if not self.source_manager.files:
-            return
-        item = self.source_manager.files[self.current_index]
-        self.statusbar.set_status(f"Compressing: {item['rel_path']}...", Statusbar.WARNING)
+        file_item = self.source_manager.files[self.current_index]
+        self.statusbar.set_status(f"Compressing: {file_item['rel_path']}...", Statusbar.WARNING)
 
-        self.run_processing(item['path'])
+        self.run_processing(file_item['path'])
 
     def run_processing(self, file_path):
         self.viewer.start_progress()

@@ -3,9 +3,9 @@ from tkinter import ttk
 
 
 class CompressionController():
-    def __init__(self, parent, on_try_cb, on_save_cb, on_save_as_cb):
+    def __init__(self, parent, on_preview_cb, on_save_cb, on_save_as_cb):
         self.parent = parent
-        self.on_try_cb = on_try_cb
+        self.on_preview_cb = on_preview_cb
         self.on_save_cb = on_save_cb
         self.on_save_as_cb = on_save_as_cb
 
@@ -41,10 +41,16 @@ class CompressionController():
         btn_row = ttk.Frame(self.parent)
         btn_row.pack(fill=tk.X, pady=(10, 0))
         ttk.Button(btn_row, 
-                   text="Try", 
+                   text="Preview", 
                    width=10,
-                   command=lambda:self.on_try_cb(*self.get_compression_parameters())
+                   command=lambda:self.on_preview_cb(*self.get_compression_parameters())
                    ).pack(side=tk.LEFT, padx=2)
-        ttk.Button(btn_row, text="Save As", command=self.on_save_as_cb, width=10).pack(side=tk.RIGHT, padx=2)
-        ttk.Button(btn_row, text="Save", command=self.on_save_cb, width=10).pack(side=tk.RIGHT, padx=2)
+        ttk.Button(btn_row, text="Save As", 
+                   command=lambda:self.on_save_as_cb(*self.get_compression_parameters()), 
+                   width=10
+                   ).pack(side=tk.RIGHT, padx=2)
+        ttk.Button(btn_row, text="Save", 
+                   command=lambda:self.on_save_cb(*self.get_compression_parameters()), 
+                   width=10
+                   ).pack(side=tk.RIGHT, padx=2)
 
