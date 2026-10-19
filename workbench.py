@@ -7,6 +7,7 @@ from tkinter import filedialog, messagebox, ttk
 from PIL import Image, ImageTk
 
 from image_processor import ImageProcessor
+from image_processor_new import ImageProcessor as ImageProcessorNew
 from source_manager import SourceManager
 from strings import ABOUT_DIALOG, SHORTCUT_DIALOG
 from utility import *
@@ -19,6 +20,7 @@ from components.disabled_text import DisabledText
 from components.compression_controller import CompressionController
 from components.file_list import FileList
 from components.statusbar import Statusbar
+from components.progress_dialog import ProgressDialog
 
 
 class Workbench:
@@ -57,6 +59,7 @@ class Workbench:
         self._setup_viewer_panel(main_frame)
         self._setup_right_panel(main_frame)
         self._setup_bottom_bar()
+        self.progress_dialog = ProgressDialog(self.root, title="Please Wait", message="Executing background task...")
 
     def _setup_shortcuts(self):
         self.root.bind("<Control-Shift-F>", lambda event: self.select_files())
@@ -171,14 +174,76 @@ class Workbench:
         self.statusbar.set_status(f"Compressing: {file_item['rel_path']}...", Statusbar.WARNING)
         self.run_processing(file_item['path'])
 
-    def on_preview(self, quality, img_format, optimize):
-        self.apply_compression_preview()
+    # def on_preview(self, quality, img_format, optimize):
+    #     self.apply_compression_preview()
 
     def on_save(self, quality, img_format, optimize):
         self.save_current_image()
 
     def on_save_as(self, quality, img_format, optimize):
         self.save_as_current_image()
+
+
+    def on_preview(self, quality, img_format, optimize):
+        """
+        [x] start the progress dialog
+        [x] set the original image (rotated correctly)
+        [x] get the file name
+        [x] get all the compression parameters
+        [x] call compress_and_save_to_buffer and the buffer in the callback
+        [x] create PIL Image object with the buffer
+        [x] set the compressed image to viewer
+        [ ] set the difference (heat map)
+        [x] render the image
+        [x] close the progress dialog
+        """
+
+        self.progress_dialog.show(message="Creating compressed preview...")
+
+        self.viewer.set_original_image(self.rotated_orig_img)
+
+        # compression parameters
+        file_path = self.source_manager.files[self.current_index]['path']
+        rotation_angle = 0
+        quality, img_format, optimize = self.compression_controller.get_compression_parameters()
+
+        def callback(buffer, error):
+            if error: 
+                self.progress_dialog.close()
+                messagebox.showerror("Error", f"Failed to process image: {str(error)}")
+                self.statusbar.set_status(f"Error: Failed to process image: {str(error)}", Statusbar.ERROR)
+
+            # turn the buffer to PIL image
+            self.current_compressed_image_buffer = buffer
+            comp_pil_img = Image.open(buffer).copy()
+
+            # call the viewer to update the image
+            # self.viewer.set_images(self.rotated_orig_img, comp_pil_img, comp_img)
+            self.viewer.set_compressed_image(comp_pil_img)
+            # self.viewer.set_difference()
+            self.viewer.render_images()
+
+            self.progress_dialog.close()
+
+        self.compress_and_save_to_buffer(file_path, rotation_angle, quality, img_format, optimize, callback)
+
+
+    def compress_and_save_to_buffer(self, file_path, rotation_angle, quality, format, optimize, callback):
+        future = self.executor.submit(
+            ImageProcessorNew.process_image,
+            file_path, rotation_angle, format, quality, optimize
+        )
+
+        def done_callback(f):
+            def handle_result():
+                buffer, error = f.result()
+                # self.current_compressed_image_buffer = buffer
+                callback(buffer, error)
+
+            self.root.after(0, handle_result)
+
+        future.add_done_callback(done_callback)
+
 
     def apply_compression_preview(self):
         file_item = self.source_manager.files[self.current_index]

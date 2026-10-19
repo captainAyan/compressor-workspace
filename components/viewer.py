@@ -33,6 +33,16 @@ class Viewer(ttk.Frame):
         self.comp_pil_img = comp_pil_img
         self.raw_diff_gray = raw_diff_gray
 
+    def set_compressed_image(self, comp_pil_img):
+        self.comp_pil_img = comp_pil_img
+
+    # Rotated original image
+    def set_original_image(self, rotated_orig_img):
+        self.rotated_orig_img = rotated_orig_img
+
+    def set_difference(self, raw_diff_gray):
+        self.raw_diff_gray = raw_diff_gray
+
     def setup_widgets(self):
         # 1. Headers container
         self.headers_frame = ttk.Frame(self)
