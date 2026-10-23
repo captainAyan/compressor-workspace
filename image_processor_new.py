@@ -4,23 +4,53 @@ import numpy as np
 from PIL import Image, ImageChops, ImageEnhance, ImageStat
 
 class ImageProcessor:
-    """Handles heavy IO, compression, rotation, resizing, and difference caching."""
+    # """Handles heavy IO, compression, rotation, resizing, and difference caching."""
+    # @staticmethod
+    # def process_image(file_path, rotation_angle, format_type, quality, optimize):
+    #     try:
+    #         with Image.open(file_path) as img:
+    #             rotated = img.rotate(rotation_angle, expand=True)
+    #             save_format = "JPEG" if format_type == "JPEG" else format_type
+    #
+    #             if save_format == "JPEG" and rotated.mode in ("RGBA", "P"):
+    #                 img_to_save = rotated.convert("RGB")
+    #             else:
+    #                 img_to_save = rotated
+    #
+    #             buffer = io.BytesIO()
+    #             img_to_save.save(buffer, format=save_format, quality=quality, optimize=optimize)
+    #             buffer.seek(0)
+    #
+    #             return buffer, None
+    #
+    #     except Exception as e:
+    #         return None, e
+
     @staticmethod
-    def process_image(file_path, rotation_angle, format_type, quality, optimize):
+    def process_image(file_path, rotation_angle=0, format=None, quality=None, optimize=False):
         try:
             with Image.open(file_path) as img:
                 rotated = img.rotate(rotation_angle, expand=True)
-                save_format = "JPEG" if format_type == "JPEG" else format_type
 
-                print("save format", save_format)
+                save_format = format if format else (img.format if img.format else "JPEG")
+                save_format = "JPEG" if save_format.upper() == "JPEG" else save_format
 
-                if save_format == "JPEG" and rotated.mode in ("RGBA", "P"):
+                # Handle color mode conversion for JPEG
+                if save_format == "JPEG" and rotated.mode in ("RGBA", "P", "LA"):
                     img_to_save = rotated.convert("RGB")
                 else:
                     img_to_save = rotated
 
                 buffer = io.BytesIO()
-                img_to_save.save(buffer, format=save_format, quality=quality, optimize=optimize)
+
+                # Build save arguments dynamically
+                save_kwargs = {}
+                if quality is not None:
+                    save_kwargs["quality"] = quality
+                if optimize:
+                    save_kwargs["optimize"] = optimize
+
+                img_to_save.save(buffer, format=save_format, **save_kwargs)
                 buffer.seek(0)
 
                 return buffer, None

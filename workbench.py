@@ -31,7 +31,7 @@ class Workbench:
 
         self.executor = concurrent.futures.ThreadPoolExecutor(max_workers=2)
 
-        self.current_index = 0
+        self.current_index = -1
         self.source_manager = SourceManager(self.on_source_changed, self.on_destination_changed)
 
         self.rotation_angle = 0
@@ -168,14 +168,18 @@ class Workbench:
         self.load_current_item(index)
 
     def load_current_item(self, index):
+        if index == self.current_index:
+            return
+
         self.current_index = index
         file_item = self.source_manager.files[index]
-        self.rotation_angle = 0
-        self.statusbar.set_status(f"Compressing: {file_item['rel_path']}...", Statusbar.WARNING)
-        self.run_processing(file_item['path'])
 
-    # def on_preview(self, quality, img_format, optimize):
-    #     self.apply_compression_preview()
+        quality, img_format, optimize = self.compression_controller.get_compression_parameters()
+        self.rotation_angle = 0
+        self.viewer.zoom_scale = 1.0
+
+        self.show_both(file_item['path'], quality, img_format, optimize, self.rotation_angle)
+
 
     def on_save(self, quality, img_format, optimize):
         self.save_current_image()
@@ -185,50 +189,70 @@ class Workbench:
 
 
     def on_preview(self, quality, img_format, optimize):
-        """
-        [x] start the progress dialog
-        [x] set the original image (rotated correctly)
-        [x] get the file name
-        [x] get all the compression parameters
-        [x] call compress_and_save_to_buffer and the buffer in the callback
-        [x] create PIL Image object with the buffer
-        [x] set the compressed image to viewer
-        [ ] set the difference (heat map)
-        [x] render the image
-        [x] close the progress dialog
-        """
+        file_path = self.source_manager.files[self.current_index]['path']
 
         self.progress_dialog.show(message="Creating compressed preview...")
 
-        self.viewer.set_original_image(self.rotated_orig_img)
+        self.compress_and_show(file_path, quality, img_format, optimize, self.rotation_angle,
+                               lambda error: self.progress_dialog.close())
 
-        # compression parameters
-        file_path = self.source_manager.files[self.current_index]['path']
-        rotation_angle = 0
-        quality, img_format, optimize = self.compression_controller.get_compression_parameters()
 
-        def callback(buffer, error):
+    def compress_and_show(self, file_path, quality, img_format, optimize, rotation_angle, callback):
+        def _callback(buffer, error):
             if error: 
-                self.progress_dialog.close()
                 messagebox.showerror("Error", f"Failed to process image: {str(error)}")
                 self.statusbar.set_status(f"Error: Failed to process image: {str(error)}", Statusbar.ERROR)
+                return callback(error)
 
             # turn the buffer to PIL image
             self.current_compressed_image_buffer = buffer
             comp_pil_img = Image.open(buffer).copy()
 
             # call the viewer to update the image
-            # self.viewer.set_images(self.rotated_orig_img, comp_pil_img, comp_img)
             self.viewer.set_compressed_image(comp_pil_img)
-            # self.viewer.set_difference()
             self.viewer.render_images()
 
+            callback(None)
+
+        self.compress_async(file_path, quality, img_format, optimize, rotation_angle, _callback)
+
+
+    def rotate_and_show(self, file_path, rotation_angle, callback):
+        def _callback(buffer, error):
+            if error: 
+                messagebox.showerror("Error", f"Failed to process image: {str(error)}")
+                self.statusbar.set_status(f"Error: Failed to process image: {str(error)}", Statusbar.ERROR)
+                return callback(error)
+
+            # turn the buffer to PIL image
+            self.current_original_image_buffer = buffer
+            orig_pil_img = Image.open(buffer).copy()
+
+            # call the viewer to update the image
+            self.viewer.set_original_image(orig_pil_img)
+
+            callback(None)
+
+        self.compress_async(file_path, None, None, False, rotation_angle, _callback)
+
+
+    def show_both(self, file_path, quality, img_format, optimize, rotation_angle):
+        self.progress_dialog.show(message="Updating preview...")
+
+        def _compression_callback(error):
             self.progress_dialog.close()
 
-        self.compress_and_save_to_buffer(file_path, rotation_angle, quality, img_format, optimize, callback)
+        def _rotation_callback(error):
+            if error:
+                self.progress_dialog.close()
+                return
+
+            self.compress_and_show(file_path, quality, img_format, optimize, rotation_angle, _compression_callback)
+
+        self.rotate_and_show(file_path, rotation_angle, _rotation_callback)
 
 
-    def compress_and_save_to_buffer(self, file_path, rotation_angle, quality, format, optimize, callback):
+    def compress_async(self, file_path, quality, format, optimize, rotation_angle, callback):
         future = self.executor.submit(
             ImageProcessorNew.process_image,
             file_path, rotation_angle, format, quality, optimize
@@ -237,8 +261,7 @@ class Workbench:
         def done_callback(f):
             def handle_result():
                 buffer, error = f.result()
-                # self.current_compressed_image_buffer = buffer
-                callback(buffer, error)
+                return callback(buffer, error)
 
             self.root.after(0, handle_result)
 
