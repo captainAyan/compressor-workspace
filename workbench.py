@@ -42,8 +42,7 @@ class Workbench:
         self.current_ssim = 0.0
         self.saved_session_records = []
 
-        self.current_preview_image_format = "JPEG"
-        self.current_preview_image_compression_quality = 0
+        self.current_compression_parameters = {}
 
         self._setup_ui()
         self._setup_shortcuts()
@@ -114,6 +113,7 @@ class Workbench:
         comp_group = ttk.LabelFrame(right_panel, text="Compression Settings", padding=10)
         comp_group.pack(fill=tk.X, pady=(0, 10))
         self.compression_controller = CompressionController(comp_group, self.on_preview, self.on_save, self.on_save_as)
+        self._set_current_compression_parameters(*self.compression_controller.get_compression_parameters())
 
         # 3B. Current Stats Panel
         curr_group = ttk.LabelFrame(right_panel, text="Current File Stats & Metrics", padding=10)
@@ -136,6 +136,16 @@ class Workbench:
         bottom_frame.pack(fill=tk.X, padx=10, pady=(0, 5))
         self.statusbar = Statusbar(bottom_frame)
         self.statusbar.set_status("Status: Ready. Please select source files or a folder.", Statusbar.SUCCESS)
+
+    def _set_current_compression_parameters(self, quality, format, optimize):
+        self.current_compression_parameters = {
+            "quality": quality,
+            "format": format,
+            "optimize": optimize 
+        }
+    def _get_current_compression_parameters(self):
+        x = self.current_compression_parameters
+        return x["quality"], x["format"], x["optimize"]
 
     def on_source_changed(self, source_mode, source_dir):
         if source_mode == "files":
@@ -175,6 +185,8 @@ class Workbench:
         file_item = self.source_manager.files[index]
 
         quality, img_format, optimize = self.compression_controller.get_compression_parameters()
+        self._set_current_compression_parameters(quality, format, optimize)
+
         self.rotation_angle = 0
         self.viewer.zoom_scale = 1.0
 
@@ -188,12 +200,13 @@ class Workbench:
         self.save_as_current_image()
 
 
-    def on_preview(self, quality, img_format, optimize):
+    def on_preview(self, quality, format, optimize):
+        self._set_current_compression_parameters(quality, format, optimize)
         file_path = self.source_manager.files[self.current_index]['path']
 
         self.progress_dialog.show(message="Creating compressed preview...")
 
-        self.compress_and_show(file_path, quality, img_format, optimize, self.rotation_angle,
+        self.compress_and_show(file_path, quality, format, optimize, self.rotation_angle,
                                lambda error: self.progress_dialog.close())
 
 
@@ -268,51 +281,13 @@ class Workbench:
         future.add_done_callback(done_callback)
 
 
-    def apply_compression_preview(self):
-        file_item = self.source_manager.files[self.current_index]
-        self.statusbar.set_status(f"Compressing: {file_item['rel_path']}...", Statusbar.WARNING)
-
-        self.run_processing(file_item['path'])
-
-    def run_processing(self, file_path):
-        self.viewer.start_progress()
-
-        quality, img_format, optimize = self.compression_controller.get_compression_parameters()
-        self.current_preview_image_format = img_format
-        self.current_preview_image_compression_quality = quality
-
-        future = self.executor.submit(
-            ImageProcessor.process_image, 
-            file_path, self.rotation_angle, img_format, quality, optimize
-        )
-        future.add_done_callback(lambda f: self.root.after(0, lambda: self.on_image_loaded(f)))
-
-    def on_image_loaded(self, future):
-        buffer, comp_size, comp_img, raw_diff_gray, rotated_orig, psnr, ssim, error = future.result()
-        if error:
-            messagebox.showerror("Error", f"Failed to process image: {error}")
-            self.statusbar.set_status(f"Error: Failed to process image: {error}", Statusbar.ERROR)
-            return
-
-        self.current_comp_buffer = buffer
-        self.current_comp_size = comp_size
-        self.comp_pil_img = comp_img
-        self.raw_diff_gray = raw_diff_gray
-        self.rotated_orig_img = rotated_orig
-        self.current_psnr = psnr
-        self.current_ssim = ssim
-
-        self.viewer.set_images(self.rotated_orig_img, self.comp_pil_img, self.raw_diff_gray)
-        self.viewer.render_images()
-        self.viewer.stop_progress()
-
-        self.update_current_stats()
-        self.statusbar.set_status("Status: Ready.", Statusbar.SUCCESS)
-
-
     def on_rotate_image(self, angle_delta):
         self.rotation_angle = (self.rotation_angle + angle_delta) % 360
-        self.apply_compression_preview()
+        file_path = self.source_manager.files[self.current_index]['path']
+        quality, format, optimize = self._get_current_compression_parameters()
+
+        self.show_both(file_path, quality, format, optimize, self.rotation_angle)
+
 
     def on_reset_view(self):
         self.rotation_angle = 0
@@ -334,7 +309,7 @@ class Workbench:
 
         item = self.source_manager.files[self.current_index]
         base_name, _ = os.path.splitext(item['rel_path'])
-        new_ext = ".webp" if self.current_preview_image_format == "WEBP" else ".jpg"
+        new_ext = ".webp" if self.current_compression_parameters["quality"] == "WEBP" else ".jpg"
         target_rel_path = base_name + new_ext
 
         dest_path = os.path.join(self.source_manager.dest_dir, target_rel_path)
@@ -348,8 +323,8 @@ class Workbench:
 
         file_item = self.source_manager.files[self.current_index]
         
-        default_ext = ".webp" if self.current_preview_image_format == "WEBP" else ".jpg"
-        allowed_filetypes = ("WebP Image", "*.webp") if self.current_preview_image_format == "WEBP" else ("JPEG Image", "*.jpg;*.jpeg")
+        default_ext = ".webp" if self.current_compression_parameters["format"] == "WEBP" else ".jpg"
+        allowed_filetypes = ("WebP Image", "*.webp") if self.current_compression_parameters["format"] == "WEBP" else ("JPEG Image", "*.jpg;*.jpeg")
         base_name, _ = os.path.splitext(os.path.basename(file_item['rel_path']))
         initial_file = base_name + default_ext
 
@@ -373,7 +348,7 @@ class Workbench:
                                    file_item['path'], 
                                    dest_path, 
                                    target_rel_path,
-                                   self.current_preview_image_compression_quality, 
+                                   self.current_compression_parameters["quality"], 
                                    self.current_comp_size))
         )
 
