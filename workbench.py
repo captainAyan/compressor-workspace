@@ -36,7 +36,6 @@ class Workbench:
 
         self.rotation_angle = 0
 
-        self.current_comp_buffer = None
         self.current_comp_size = 0
         self.current_psnr = 0.0
         self.current_ssim = 0.0
@@ -175,10 +174,8 @@ class Workbench:
         self.file_list.select(new_idx)
 
     def on_file_select(self, index):
-        self.load_current_item(index)
-
-    def load_current_item(self, index):
-        if index == self.current_index:
+        # TODO: in case of source change, and the current index was at 0
+        if index == self.current_index and self.current_index!=0:
             return
 
         self.current_index = index
@@ -218,7 +215,7 @@ class Workbench:
                 return callback(error)
 
             # turn the buffer to PIL image
-            self.current_compressed_image_buffer = buffer
+            # self.current_compressed_image_buffer = buffer
             comp_pil_img = Image.open(buffer).copy()
 
             # call the viewer to update the image
@@ -238,7 +235,7 @@ class Workbench:
                 return callback(error)
 
             # turn the buffer to PIL image
-            self.current_original_image_buffer = buffer
+            # self.current_original_image_buffer = buffer
             orig_pil_img = Image.open(buffer).copy()
 
             # call the viewer to update the image
@@ -302,76 +299,88 @@ class Workbench:
             messagebox.showwarning("Destination Missing", "Please select a destination folder first!")
             self.statusbar.set_status("Destination Missing: Please select a destination folder first!", Statusbar.ERROR)
             return
-        if not self.current_comp_buffer:
-            messagebox.showwarning("No Data", "No compressed preview buffer available. Click 'Try' first.")
-            self.statusbar.set_status("No Data: No compressed preview buffer available. Click 'Try' first.", Statusbar.ERROR)
-            return
-
-        item = self.source_manager.files[self.current_index]
-        base_name, _ = os.path.splitext(item['rel_path'])
-        new_ext = ".webp" if self.current_compression_parameters["quality"] == "WEBP" else ".jpg"
-        target_rel_path = base_name + new_ext
-
-        dest_path = os.path.join(self.source_manager.dest_dir, target_rel_path)
-        self._save_async(dest_path, item, target_rel_path)
-
-    def save_as_current_image(self):
-        if not self.current_comp_buffer:
-            messagebox.showwarning("No Data", "No compressed preview buffer available. Click 'Try' first.")
-            self.statusbar.set_status("No Data: No compressed preview buffer available. Click 'Try' first.", Statusbar.ERROR)
-            return
+        # if not self.current_compressed_image_buffer:
+        #     messagebox.showwarning("No Data", "No compressed preview buffer available. Click 'Try' first.")
+        #     self.statusbar.set_status("No Data: No compressed preview buffer available. Click 'Try' first.", Statusbar.ERROR)
+        #     return
 
         file_item = self.source_manager.files[self.current_index]
-        
-        default_ext = ".webp" if self.current_compression_parameters["format"] == "WEBP" else ".jpg"
+
+        base_name, _ = os.path.splitext(file_item['rel_path'])
+        new_extension = ".webp" if self.current_compression_parameters["quality"] == "WEBP" else ".jpg"
+        target_relative_path = base_name + new_extension
+        destination_path = os.path.join(self.source_manager.dest_dir, target_relative_path)
+
+        quality, format, optimize = self.compression_controller.get_compression_parameters()
+
+        self._save_async(destination_path, file_item['path'], target_relative_path, quality, format, optimize)
+
+    def save_as_current_image(self):
+        # if not self.current_compressed_image_buffer:
+        #     messagebox.showwarning("No Data", "No compressed preview buffer available. Click 'Try' first.")
+        #     self.statusbar.set_status("No Data: No compressed preview buffer available. Click 'Try' first.", Statusbar.ERROR)
+        #     return
+
+        file_item = self.source_manager.files[self.current_index]
+
+        default_extension = ".webp" if self.current_compression_parameters["format"] == "WEBP" else ".jpg"
         allowed_filetypes = ("WebP Image", "*.webp") if self.current_compression_parameters["format"] == "WEBP" else ("JPEG Image", "*.jpg;*.jpeg")
         base_name, _ = os.path.splitext(os.path.basename(file_item['rel_path']))
-        initial_file = base_name + default_ext
+        initial_file = base_name + default_extension
 
-        dest_path = filedialog.asksaveasfilename(
+        destination_path = filedialog.asksaveasfilename(
             initialfile=initial_file,
-            defaultextension=default_ext,
+            defaultextension=default_extension,
             filetypes=[allowed_filetypes, ("All Files", "*.*")]
         )
 
-        if not dest_path: return
+        if not destination_path: return
 
-        target_rel_path = os.path.basename(dest_path)
-        self._save_async(dest_path, file_item, target_rel_path)
+        target_relative_path = os.path.basename(destination_path)
+        quality, format, optimize = self.compression_controller.get_compression_parameters()
 
-    def _save_async(self, dest_path, file_item, target_rel_path):
-        os.makedirs(os.path.dirname(dest_path), exist_ok=True)
-        future = self.executor.submit(lambda: self.background_save(dest_path))
-        future.add_done_callback(
-            lambda f: self.root.after(0, lambda: self
-                ._on_save_complete(f, 
-                                   file_item['path'], 
-                                   dest_path, 
-                                   target_rel_path,
-                                   self.current_compression_parameters["quality"], 
-                                   self.current_comp_size))
-        )
+        self._save_async(destination_path, file_item['path'], target_relative_path, quality, format, optimize)
 
-    def background_save(self, dest_path):
-        with open(dest_path, "wb") as f:
-            f.write(self.current_comp_buffer.getvalue())
-        return dest_path
 
-    def _on_save_complete(self, future, original_path, dest_path, target_rel_path, quality, compressed_size):
-        saved_path = future.result()
-        orig_size = os.path.getsize(original_path)
+    def _save_async(self, destination_path, source_path, target_relative_path, quality, format, optimize):
+        self.progress_dialog.show(message="Saving...")
+        os.makedirs(os.path.dirname(destination_path), exist_ok=True)
 
-        self.saved_session_records.append({
-            'original_file': original_path,
-            'output_file': dest_path,
-            'original_size': orig_size,
-            'compressed_size': compressed_size,
-            'quality': quality
-        })
+        def _compress_async_callback(buffer, error):
+            self.progress_dialog.close()
 
-        self.update_overall_stats_display()
-        self.file_list.mark_as_compressed(self.current_index)
-        self.statusbar.set_status(f"Saved successfully: {target_rel_path}", Statusbar.SUCCESS)
+            if error:
+                messagebox.showerror("Error", f"Failed to save image {str(error)}")
+                self.statusbar.set_status(f"Error: Failed to save image {str(error)}", Statusbar.ERROR)
+                return
+
+            try:
+                with open(destination_path, "wb") as f:
+                    f.write(buffer.getvalue())
+            except Exception as e:
+                messagebox.showerror("Error", f"Failed to write file: {str(e)}")
+                self.statusbar.set_status(f"Error: Failed to write file {str(e)}", Statusbar.ERROR)
+                return
+
+            original_size = os.path.getsize(source_path)
+            compressed_size = buffer.getbuffer().nbytes
+
+            self.statusbar.set_status(f"Saved successfully: {target_relative_path}", Statusbar.SUCCESS)
+
+            self.saved_session_records.append({
+                'original_file': source_path,
+                'output_file': destination_path,
+                'original_size': original_size,
+                'compressed_size': compressed_size,
+                'quality': quality
+            })
+
+            self.update_overall_stats_display()
+            self.file_list.mark_as_compressed(self.current_index)
+            self.statusbar.set_status(f"Saved successfully: {target_relative_path}", Statusbar.SUCCESS)
+
+        self.compress_async(source_path, quality, format, optimize, self.rotation_angle, _compress_async_callback)
+
 
     def update_current_stats(self):
         item = self.source_manager.files[self.current_index]
