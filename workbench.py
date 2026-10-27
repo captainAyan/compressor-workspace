@@ -36,7 +36,6 @@ class Workbench:
 
         self.rotation_angle = 0
 
-        self.current_comp_size = 0
         self.current_psnr = 0.0
         self.current_ssim = 0.0
         self.saved_session_records = []
@@ -49,7 +48,7 @@ class Workbench:
     def _setup_ui(self):
         self._setup_menubar()
         self._setup_top_bar()
-        
+
         main_frame = ttk.Frame(self.root, padding=10)
         main_frame.pack(fill=tk.BOTH, expand=True, padx=5)
 
@@ -80,7 +79,7 @@ class Workbench:
             "select_destination": self.select_destination,
             "save":self.save_current_image,
             "save_as": self.save_as_current_image,
-            
+
             "swap_view": lambda: self.viewer.toggle_layout_swap(),
             "toggle_heatmap": lambda: self.viewer.toggle_heatmap(),
             "reset_view": self.reset_view,
@@ -214,12 +213,8 @@ class Workbench:
                 self.statusbar.set_status(f"Error: Failed to process image: {str(error)}", Statusbar.ERROR)
                 return callback(error)
 
-            # turn the buffer to PIL image
-            # self.current_compressed_image_buffer = buffer
-            comp_pil_img = Image.open(buffer).copy()
-
-            # call the viewer to update the image
-            self.viewer.set_compressed_image(comp_pil_img)
+            compressed_pil_image = Image.open(buffer).copy()
+            self.viewer.set_compressed_image(compressed_pil_image)
             self.viewer.render_images()
 
             callback(None)
@@ -234,12 +229,8 @@ class Workbench:
                 self.statusbar.set_status(f"Error: Failed to process image: {str(error)}", Statusbar.ERROR)
                 return callback(error)
 
-            # turn the buffer to PIL image
-            # self.current_original_image_buffer = buffer
-            orig_pil_img = Image.open(buffer).copy()
-
-            # call the viewer to update the image
-            self.viewer.set_original_image(orig_pil_img)
+            original_pil_image = Image.open(buffer).copy()
+            self.viewer.set_original_image(original_pil_image)
 
             callback(None)
 
@@ -299,10 +290,6 @@ class Workbench:
             messagebox.showwarning("Destination Missing", "Please select a destination folder first!")
             self.statusbar.set_status("Destination Missing: Please select a destination folder first!", Statusbar.ERROR)
             return
-        # if not self.current_compressed_image_buffer:
-        #     messagebox.showwarning("No Data", "No compressed preview buffer available. Click 'Try' first.")
-        #     self.statusbar.set_status("No Data: No compressed preview buffer available. Click 'Try' first.", Statusbar.ERROR)
-        #     return
 
         file_item = self.source_manager.files[self.current_index]
 
@@ -316,11 +303,6 @@ class Workbench:
         self._save_async(destination_path, file_item['path'], target_relative_path, quality, format, optimize)
 
     def save_as_current_image(self):
-        # if not self.current_compressed_image_buffer:
-        #     messagebox.showwarning("No Data", "No compressed preview buffer available. Click 'Try' first.")
-        #     self.statusbar.set_status("No Data: No compressed preview buffer available. Click 'Try' first.", Statusbar.ERROR)
-        #     return
-
         file_item = self.source_manager.files[self.current_index]
 
         default_extension = ".webp" if self.current_compression_parameters["format"] == "WEBP" else ".jpg"
@@ -331,8 +313,7 @@ class Workbench:
         destination_path = filedialog.asksaveasfilename(
             initialfile=initial_file,
             defaultextension=default_extension,
-            filetypes=[allowed_filetypes, ("All Files", "*.*")]
-        )
+            filetypes=[allowed_filetypes, ("All Files", "*.*")])
 
         if not destination_path: return
 
@@ -385,7 +366,7 @@ class Workbench:
     def update_current_stats(self):
         item = self.source_manager.files[self.current_index]
         orig_size = os.path.getsize(item['path'])
-        comp_size = self.current_comp_size
+        comp_size = current_comp_size
         saved_pct = (1 - (comp_size / orig_size)) * 100 if orig_size > 0 else 0
 
         quality, img_format, optimize = self.compression_controller.get_compression_parameters()
@@ -412,7 +393,7 @@ class Workbench:
             total_orig = sum(r['original_size'] for r in self.saved_session_records)
             total_comp = sum(r['compressed_size'] for r in self.saved_session_records)
             overall_pct = (1 - (total_comp / total_orig)) * 100 if total_orig > 0 else 0
-            
+
             percentages = [
                 (1 - (r['compressed_size'] / r['original_size'])) * 100 
                 if r['original_size'] > 0 else 0 
