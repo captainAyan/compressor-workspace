@@ -217,6 +217,8 @@ class Workbench:
             self.viewer.set_compressed_image(compressed_pil_image)
             self.viewer.render_images()
 
+            self.update_current_stats(buffer)
+
             callback(None)
 
         self.compress_async(file_path, quality, img_format, optimize, rotation_angle, _callback)
@@ -363,10 +365,11 @@ class Workbench:
         self.compress_async(source_path, quality, format, optimize, self.rotation_angle, _compress_async_callback)
 
 
-    def update_current_stats(self):
+    def update_current_stats(self, buffer):
         item = self.source_manager.files[self.current_index]
         orig_size = os.path.getsize(item['path'])
-        comp_size = current_comp_size
+        comp_size = buffer.getbuffer().nbytes
+
         saved_pct = (1 - (comp_size / orig_size)) * 100 if orig_size > 0 else 0
 
         quality, img_format, optimize = self.compression_controller.get_compression_parameters()
@@ -378,8 +381,8 @@ class Workbench:
             f"Original Size: {orig_size / 1024:.2f} KB\n"
             f"Compressed Size: {comp_size / 1024:.2f} KB\n"
             f"Saved Space: {saved_pct:.1f}%\n"
-            f"PSNR: {psnr_str}\n"
-            f"SSIM: {self.current_ssim:.4f}\n"
+            # f"PSNR: {psnr_str}\n"
+            # f"SSIM: {self.current_ssim:.4f}\n"
             f"Config: {img_format} @ Q={quality}"
         )
         self.curr_stats_text.set_text(info)
