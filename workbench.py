@@ -181,7 +181,7 @@ class Workbench:
         file_item = self.source_manager.files[index]
 
         quality, img_format, optimize = self.compression_controller.get_compression_parameters()
-        self._set_current_compression_parameters(quality, format, optimize)
+        self._set_current_compression_parameters(quality, img_format, optimize)
 
         self.rotation_angle = 0
         self.viewer.zoom_scale = 1.0
