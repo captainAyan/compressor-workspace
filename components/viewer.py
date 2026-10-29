@@ -47,10 +47,10 @@ class Viewer(ttk.Frame):
         # 1. Headers container
         self.headers_frame = ttk.Frame(self)
         self.headers_frame.pack(fill=tk.X)
-        
+
         self.left_header = ttk.Label(self.headers_frame, text="Original Image", font=("Arial", 10, "bold"))
         self.left_header.pack(side=tk.LEFT, expand=True)
-        
+
         self.right_header = ttk.Label(self.headers_frame, text="Compressed Preview", font=("Arial", 10, "bold"))
         self.right_header.pack(side=tk.RIGHT, expand=True)
 
@@ -77,9 +77,6 @@ class Viewer(ttk.Frame):
             canvas.bind("<ButtonPress-1>", self.on_pan_start)
             canvas.bind("<B1-Motion>", self.on_pan_move)
 
-        self.progressbar = ttk.Progressbar(self, orient=tk.HORIZONTAL, mode='indeterminate')
-        self.progressbar.pack(fill=tk.X, pady=5)
-
         # 3. Bottom controls toolbar
         toolbar = ttk.Frame(self, padding=5)
         toolbar.pack(fill=tk.X, pady=5)
@@ -88,12 +85,12 @@ class Viewer(ttk.Frame):
         self.zoom_slider = ttk.Scale(toolbar, from_=0.2, to=4.0, value=1.0, orient=tk.HORIZONTAL, length=100)
         self.zoom_slider.pack(side=tk.LEFT, padx=2)
         self.zoom_slider.bind("<ButtonRelease-1>", lambda e: self.on_zoom_change(float(self.zoom_slider.get())))
-        
+
         ttk.Button(toolbar, text="Reset", command=self.internal_reset).pack(side=tk.LEFT, padx=2)
         ttk.Button(toolbar, text="↺ -90°", width=5, command=lambda: self.on_rotate_cb(90)).pack(side=tk.LEFT, padx=1)
         ttk.Button(toolbar, text="90° ↻", width=5, command=lambda: self.on_rotate_cb(-90)).pack(side=tk.LEFT, padx=1)
         ttk.Button(toolbar, text="180°", width=5, command=lambda: self.on_rotate_cb(180)).pack(side=tk.LEFT, padx=1)
-        
+
         # Heatmap Gain Slider
         self.gain_slider = ttk.Scale(toolbar, from_=1.0, to=20.0, value=5.0, orient=tk.HORIZONTAL, length=100)
         self.gain_slider.pack(side=tk.RIGHT, padx=2)
@@ -129,7 +126,7 @@ class Viewer(ttk.Frame):
         new_h = int(self.rotated_orig_img.height * current_scale)
 
         orig_res = self.rotated_orig_img.resize((new_w, new_h), Image.Resampling.LANCZOS)
-        
+
         if self.showing_heatmap:
             heatmap_img = ImageProcessor.render_heatmap(self.raw_diff_gray, self.heatmap_multiplier)
             preview_res = heatmap_img.resize((new_w, new_h), Image.Resampling.LANCZOS)
@@ -194,11 +191,11 @@ class Viewer(ttk.Frame):
 
         x_fractions = self.canvas_a.xview()
         y_fractions = self.canvas_a.yview()
-        
+
         scroll_region = self.canvas_a.cget("scrollregion")
         if not scroll_region:
             return
-        
+
         _, _, region_w, region_h = map(float, scroll_region.split())
         if region_w <= 0 or region_h <= 0:
             return
@@ -218,12 +215,6 @@ class Viewer(ttk.Frame):
     def on_h_scroll(self, *args):
         self.canvas_a.xview(*args)
         self.canvas_b.xview(*args)
-
-    def start_progress(self):
-        self.progressbar.start()
-
-    def stop_progress(self):
-        self.progressbar.stop()
 
     def internal_reset(self):
         self.zoom_slider.set(1.0)
