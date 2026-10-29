@@ -6,7 +6,7 @@ import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 from PIL import Image, ImageTk
 
-from image_processor import ImageProcessor
+# from image_processor import ImageProcessor
 from image_processor_new import ImageProcessor as ImageProcessorNew
 from source_manager import SourceManager
 from strings import ABOUT_DIALOG, SHORTCUT_DIALOG
@@ -36,8 +36,6 @@ class Workbench:
 
         self.rotation_angle = 0
 
-        self.current_psnr = 0.0
-        self.current_ssim = 0.0
         self.saved_session_records = []
 
         self.current_compression_parameters = {}
@@ -207,36 +205,37 @@ class Workbench:
 
 
     def compress_and_show(self, file_path, quality, img_format, optimize, rotation_angle, callback):
-        def _callback(buffer, error):
+        def _callback(error, compressed_image_buffer, compressed_image, difference_image, psnr, ssim):
             if error: 
+                raise error
                 messagebox.showerror("Error", f"Failed to process image: {str(error)}")
                 self.statusbar.set_status(f"Error: Failed to process image: {str(error)}", Statusbar.ERROR)
                 return callback(error)
 
-            compressed_pil_image = Image.open(buffer).copy()
-            self.viewer.set_compressed_image(compressed_pil_image)
+            self.viewer.set_compressed_image(compressed_image)
+            self.viewer.set_difference(difference_image)
             self.viewer.render_images()
 
-            self.update_current_stats(buffer)
+            self.update_current_stats(compressed_image_buffer, quality, img_format, optimize, psnr, ssim)
 
             callback(None)
 
-        self.compress_async(file_path, quality, img_format, optimize, rotation_angle, _callback)
+        self.compress_async(file_path, False, quality, img_format, optimize, rotation_angle, _callback)
 
 
     def rotate_and_show(self, file_path, rotation_angle, callback):
-        def _callback(buffer, error):
+        def _callback(error, rotated_image_buffer, rotated_image, _, __, ___):
             if error: 
+                raise error
                 messagebox.showerror("Error", f"Failed to process image: {str(error)}")
                 self.statusbar.set_status(f"Error: Failed to process image: {str(error)}", Statusbar.ERROR)
                 return callback(error)
 
-            original_pil_image = Image.open(buffer).copy()
-            self.viewer.set_original_image(original_pil_image)
+            self.viewer.set_original_image(rotated_image)
 
             callback(None)
 
-        self.compress_async(file_path, None, None, False, rotation_angle, _callback)
+        self.compress_async(file_path, True, None, None, False, rotation_angle, _callback)
 
 
     def show_both(self, file_path, quality, img_format, optimize, rotation_angle):
@@ -255,16 +254,16 @@ class Workbench:
         self.rotate_and_show(file_path, rotation_angle, _rotation_callback)
 
 
-    def compress_async(self, file_path, quality, format, optimize, rotation_angle, callback):
+    def compress_async(self, file_path, only_compress, quality, format, optimize, rotation_angle, callback):
         future = self.executor.submit(
             ImageProcessorNew.process_image,
-            file_path, rotation_angle, format, quality, optimize
+            file_path, only_compress, rotation_angle, format, quality, optimize
         )
 
         def done_callback(f):
             def handle_result():
-                buffer, error = f.result()
-                return callback(buffer, error)
+                error, compressed_image_buffer, compressed_image, difference_image, psnr, ssim = f.result()
+                return callback(error, compressed_image_buffer, compressed_image, difference_image, psnr, ssim)
 
             self.root.after(0, handle_result)
 
@@ -329,7 +328,7 @@ class Workbench:
         self.progress_dialog.show(message="Saving...")
         os.makedirs(os.path.dirname(destination_path), exist_ok=True)
 
-        def _compress_async_callback(buffer, error):
+        def _compress_async_callback(error, compressed_image_buffer, compressed_image, _, __, ___):
             self.progress_dialog.close()
 
             if error:
@@ -339,14 +338,14 @@ class Workbench:
 
             try:
                 with open(destination_path, "wb") as f:
-                    f.write(buffer.getvalue())
+                    f.write(compressed_image_buffer.getvalue())
             except Exception as e:
                 messagebox.showerror("Error", f"Failed to write file: {str(e)}")
                 self.statusbar.set_status(f"Error: Failed to write file {str(e)}", Statusbar.ERROR)
                 return
 
             original_size = os.path.getsize(source_path)
-            compressed_size = buffer.getbuffer().nbytes
+            compressed_size = compressed_image_buffer.getbuffer().nbytes
 
             self.statusbar.set_status(f"Saved successfully: {target_relative_path}", Statusbar.SUCCESS)
 
@@ -362,28 +361,26 @@ class Workbench:
             self.file_list.mark_as_compressed(self.current_index)
             self.statusbar.set_status(f"Saved successfully: {target_relative_path}", Statusbar.SUCCESS)
 
-        self.compress_async(source_path, quality, format, optimize, self.rotation_angle, _compress_async_callback)
+        self.compress_async(source_path, True, quality, format, optimize, self.rotation_angle, _compress_async_callback)
 
 
-    def update_current_stats(self, buffer):
+    def update_current_stats(self, compressed_image_buffer, quality, format, optimize, psnr, ssim):
         item = self.source_manager.files[self.current_index]
         orig_size = os.path.getsize(item['path'])
-        comp_size = buffer.getbuffer().nbytes
+        comp_size = compressed_image_buffer.getbuffer().nbytes
 
         saved_pct = (1 - (comp_size / orig_size)) * 100 if orig_size > 0 else 0
 
-        quality, img_format, optimize = self.compression_controller.get_compression_parameters()
-
-        psnr_str = f"{self.current_psnr:.2f} dB" if not math.isinf(self.current_psnr) else "Inf dB"
+        psnr_str = f"{psnr:.2f} dB" if not math.isinf(psnr) else "Inf dB"
 
         info = (
             f"File: {item['rel_path']}\n"
             f"Original Size: {orig_size / 1024:.2f} KB\n"
             f"Compressed Size: {comp_size / 1024:.2f} KB\n"
             f"Saved Space: {saved_pct:.1f}%\n"
-            # f"PSNR: {psnr_str}\n"
-            # f"SSIM: {self.current_ssim:.4f}\n"
-            f"Config: {img_format} @ Q={quality}"
+            f"PSNR: {psnr_str}\n"
+            f"SSIM: {ssim:.4f}\n"
+            f"Config: {format} @ Q={quality}"
         )
         self.curr_stats_text.set_text(info)
 
