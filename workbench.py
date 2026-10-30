@@ -6,8 +6,7 @@ import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 from PIL import Image, ImageTk
 
-# from image_processor import ImageProcessor
-from image_processor_new import ImageProcessor as ImageProcessorNew
+from image_processor import ImageProcessor as ImageProcessorNew
 from source_manager import SourceManager
 from strings import ABOUT_DIALOG, SHORTCUT_DIALOG
 from utility import *
