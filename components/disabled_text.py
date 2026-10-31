@@ -1,12 +1,13 @@
 import tkinter as tk
 
 class DisabledText(tk.Text):
-    def __init__(self, master=None, **kwargs):
+    def __init__(self, master=None, bg="#f4f4f4", **kwargs):
         defaults = {
             "height": 2,
             "width": 40,
             "wrap": tk.WORD,
-            "bg": "#f4f4f4",
+            # "bg": "#f4f4f4",
+            "bg": bg,
             "relief": tk.FLAT
         }
         defaults.update(kwargs)

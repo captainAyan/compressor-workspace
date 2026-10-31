@@ -213,7 +213,7 @@ class Workbench:
             self.viewer.set_difference(difference_image)
             self.viewer.render_images()
 
-            self.update_current_stats(compressed_image_buffer, quality, img_format, optimize, psnr, ssim)
+            self.update_preview_stats(compressed_image_buffer, quality, img_format, optimize, psnr, ssim)
 
             callback(None)
 
@@ -354,7 +354,7 @@ class Workbench:
                 'quality': quality
             })
 
-            self.update_overall_stats_display()
+            self.update_overall_stats()
             self.file_list.mark_as_compressed(self.current_index)
             self.statusbar.set_status(f"Saved successfully: {target_relative_path}", Statusbar.SUCCESS)
             self.session_data_view.refresh(self.saved_session_records)
@@ -362,7 +362,7 @@ class Workbench:
         self.compress_async(source_path, True, quality, format, optimize, self.rotation_angle, _compress_async_callback)
 
 
-    def update_current_stats(self, compressed_image_buffer, quality, format, optimize, psnr, ssim):
+    def update_preview_stats(self, compressed_image_buffer, quality, format, optimize, psnr, ssim):
         item = self.source_manager.files[self.current_index]
         original_size = os.path.getsize(item['path'])
         compressed_size = compressed_image_buffer.getbuffer().nbytes
@@ -370,10 +370,10 @@ class Workbench:
         saved_pct = (1 - (compressed_size / original_size)) * 100 if original_size > 0 else 0
         psnr_str = f"{psnr:.2f} dB" if not math.isinf(psnr) else "Inf dB"
 
-        self.stats_view.update_current_stats(
+        self.stats_view.update_preview_stats(
             item["rel_path"], original_size, compressed_size, saved_pct, quality, format, psnr_str, ssim)
 
-    def update_overall_stats_display(self):
+    def update_overall_stats(self):
         count = len(self.saved_session_records)
         if count != 0:
             total_orig = sum(r['original_size'] for r in self.saved_session_records)
