@@ -277,11 +277,16 @@ class Workbench:
 
     def on_reset_view(self):
         self.rotation_angle = 0
-        self.apply_compression_preview()
+
+        self.progress_dialog.show(message="Resetting image...")
+        file_path = self.source_manager.files[self.current_index]['path']
+        quality, format, optimize = self._get_current_compression_parameters()
+        self.compress_and_show(file_path, quality, format, optimize, self.rotation_angle,
+                               lambda error: self.progress_dialog.close())
 
     def reset_view(self):
+        # viewer.internal_reset will call the on_reset_view callback
         self.viewer.internal_reset()
-        self.on_reset_view()
 
     def save_current_image(self):
         if not self.source_manager.dest_dir:
