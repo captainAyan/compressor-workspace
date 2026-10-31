@@ -20,6 +20,8 @@ from components.compression_controller import CompressionController
 from components.file_list import FileList
 from components.statusbar import Statusbar
 from components.progress_dialog import ProgressDialog
+from components.session_data_view import SessionDataView
+from components.stats_view import StatsView
 
 
 class Workbench:
@@ -110,21 +112,17 @@ class Workbench:
         self.compression_controller = CompressionController(comp_group, self.on_preview, self.on_save, self.on_save_as)
         self._set_current_compression_parameters(*self.compression_controller.get_compression_parameters())
 
-        # 3B. Current Stats Panel
-        curr_group = ttk.LabelFrame(right_panel, text="Current File Stats & Metrics", padding=10)
+        # 3B. Stats panel
+        curr_group = ttk.LabelFrame(right_panel, text="Stats & Metrics", padding=10)
         curr_group.pack(fill=tk.X, pady=(0, 10))
 
-        self.curr_stats_text = DisabledText(curr_group, height=10, width=38)
-        self.curr_stats_text.pack(fill=tk.BOTH)
-        self.curr_stats_text.set_text("No file is selected.")
+        self.stats_view = StatsView(curr_group)
 
-        # 3C. Overall Stats Panel
-        overall_group = ttk.LabelFrame(right_panel, text="Overall Session Stats", padding=10)
-        overall_group.pack(fill=tk.BOTH, expand=True)
+        # 3C. Compressed file list
+        compressed_file_list_group = ttk.LabelFrame(right_panel, text="Compressed Files Data", padding=10)
+        compressed_file_list_group.pack(fill=tk.BOTH, expand=True)
 
-        self.overall_stats_text = DisabledText(overall_group, height=9, width=38)
-        self.overall_stats_text.pack(fill=tk.BOTH, expand=True)
-        self.update_overall_stats_display()
+        self.session_data_view = SessionDataView(compressed_file_list_group)
 
     def _setup_bottom_bar(self):
         bottom_frame = ttk.Frame(self.root, padding=5)
@@ -359,36 +357,25 @@ class Workbench:
             self.update_overall_stats_display()
             self.file_list.mark_as_compressed(self.current_index)
             self.statusbar.set_status(f"Saved successfully: {target_relative_path}", Statusbar.SUCCESS)
+            self.session_data_view.refresh(self.saved_session_records)
 
         self.compress_async(source_path, True, quality, format, optimize, self.rotation_angle, _compress_async_callback)
 
 
     def update_current_stats(self, compressed_image_buffer, quality, format, optimize, psnr, ssim):
         item = self.source_manager.files[self.current_index]
-        orig_size = os.path.getsize(item['path'])
-        comp_size = compressed_image_buffer.getbuffer().nbytes
+        original_size = os.path.getsize(item['path'])
+        compressed_size = compressed_image_buffer.getbuffer().nbytes
 
-        saved_pct = (1 - (comp_size / orig_size)) * 100 if orig_size > 0 else 0
-
+        saved_pct = (1 - (compressed_size / original_size)) * 100 if original_size > 0 else 0
         psnr_str = f"{psnr:.2f} dB" if not math.isinf(psnr) else "Inf dB"
 
-        info = (
-            f"File: {item['rel_path']}\n"
-            f"Original Size: {orig_size / 1024:.2f} KB\n"
-            f"Compressed Size: {comp_size / 1024:.2f} KB\n"
-            f"Saved Space: {saved_pct:.1f}%\n"
-            f"PSNR: {psnr_str}\n"
-            f"SSIM: {ssim:.4f}\n"
-            f"Config: {format} @ Q={quality}"
-        )
-        self.curr_stats_text.set_text(info)
+        self.stats_view.update_current_stats(
+            item["rel_path"], original_size, compressed_size, saved_pct, quality, format, psnr_str, ssim)
 
     def update_overall_stats_display(self):
-        print(self.saved_session_records)
         count = len(self.saved_session_records)
-        if count == 0:
-            summary = "No files saved in this session yet."
-        else:
+        if count != 0:
             total_orig = sum(r['original_size'] for r in self.saved_session_records)
             total_comp = sum(r['compressed_size'] for r in self.saved_session_records)
             overall_pct = (1 - (total_comp / total_orig)) * 100 if total_orig > 0 else 0
@@ -402,12 +389,8 @@ class Workbench:
             mean_pct = statistics.mean(percentages)
             median_pct = statistics.median(percentages)
 
-            summary = (
-                f"Files Saved: {count}\n"
-                f"Total Orig: {total_orig / (1024*1024):.2f} MB\n"
-                f"Total Comp: {total_comp / (1024*1024):.2f} MB\n"
-                f"Overall Saved: {overall_pct:.1f}%\n"
-                f"Mean Compression: {mean_pct:.1f}%\n"
-                f"Median Compression: {median_pct:.1f}%"
-            )
-        self.overall_stats_text.set_text(summary)
+            total_orig = total_orig / (1024*1024)
+            total_comp = total_comp / (1024*1024)
+
+            self.stats_view.update_overall_stats(count, total_orig, total_comp, overall_pct, mean_pct, median_pct)
+
