@@ -3,6 +3,8 @@ import time
 import tkinter as tk
 from tkinter import ttk
 
+from utility import center_dialog
+
 
 class ProgressDialog:
     def __init__(self, parent, title="Please Wait", message="Processing..."):
@@ -40,7 +42,7 @@ class ProgressDialog:
         self.progress.pack(pady=10)
 
         self.progress.start(10)
-        self.center_window()
+        center_dialog(self.parent, self.top)
 
     def close(self):
         if self.top is not None:
@@ -54,18 +56,4 @@ class ProgressDialog:
                 self.top = None
                 self.progress = None
                 self.label = None
-
-    def center_window(self):
-        self.top.update_idletasks()
-        p_x = self.parent.winfo_rootx()
-        p_y = self.parent.winfo_rooty()
-        p_w = self.parent.winfo_width()
-        p_h = self.parent.winfo_height()
-
-        d_w = self.top.winfo_width()
-        d_h = self.top.winfo_height()
-
-        x = p_x + (p_w - d_w) // 2
-        y = p_y + (p_h - d_h) // 2
-        self.top.geometry(f"+{x}+{y}")
 
