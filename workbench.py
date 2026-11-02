@@ -124,6 +124,22 @@ class Workbench:
 
         self.session_data_view = SessionDataView(compressed_file_list_group)
 
+        # Button frame at the bottom
+        button_frame = ttk.Frame(compressed_file_list_group)
+        button_frame.grid(row=2, column=0, sticky="ew", pady=(6, 0))
+
+        # Button
+        button_frame.columnconfigure(0, weight=1)
+        button_frame.columnconfigure(1, weight=1)
+
+        # Export CSV button
+        self.export_button = ttk.Button(button_frame, text="Export CSV", command=self.open_csv_export_wizard)
+        self.export_button.grid(row=0, column=0, sticky="ew", padx=(0, 3))
+
+        # Erase Session Data button
+        self.erase_button = ttk.Button(button_frame, text="Erase Session Data", command=self.erase_session_data)
+        self.erase_button.grid(row=0, column=1, sticky="ew", padx=(3, 0))
+
     def _setup_bottom_bar(self):
         bottom_frame = ttk.Frame(self.root, padding=5)
         bottom_frame.pack(fill=tk.X, padx=10, pady=(0, 5))
@@ -399,3 +415,10 @@ class Workbench:
 
             self.stats_view.update_overall_stats(count, total_orig, total_comp, overall_pct, mean_pct, median_pct)
 
+    def erase_session_data(self):
+        if messagebox.askyesno("Confirm Erasure", "Are you sure you want to erase the session data?"):
+            self.saved_session_records = []
+            self.session_data_view.refresh(self.saved_session_records)
+
+    def open_csv_export_wizard(self):
+        pass
