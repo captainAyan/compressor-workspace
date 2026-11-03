@@ -10,9 +10,9 @@ class Menubar:
         menubar = tk.Menu(self.parent)
 
         file_menu = tk.Menu(menubar, tearoff=0)
-        file_menu.add_command(label="Select Files", accelerator="Ctrl+Shift+F", command=self.callbacks.get("select_files"))
-        file_menu.add_command(label="Select Folder", accelerator="Ctrl+F", command=self.callbacks.get("select_folder"))
-        file_menu.add_command(label="Select Destination", accelerator="Ctrl+D", command=self.callbacks.get("select_destination"))
+        file_menu.add_command(label="Select Source Files", accelerator="Ctrl+Shift+F", command=self.callbacks.get("select_files"))
+        file_menu.add_command(label="Select Source Folder", accelerator="Ctrl+F", command=self.callbacks.get("select_folder"))
+        file_menu.add_command(label="Select Destination Folder", accelerator="Ctrl+D", command=self.callbacks.get("select_destination"))
         file_menu.add_separator()
         file_menu.add_command(label="Save", accelerator="Ctrl+S", command=self.callbacks.get("save"))
         file_menu.add_command(label="Save As", accelerator="Ctrl+Shift+S", command=self.callbacks.get("save_as"))
