@@ -5,6 +5,8 @@ import concurrent.futures
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 from PIL import Image, ImageTk
+import csv
+from datetime import datetime
 
 from image_processor import ImageProcessor as ImageProcessorNew
 from source_manager import SourceManager
@@ -22,6 +24,7 @@ from components.statusbar import Statusbar
 from components.progress_dialog import ProgressDialog
 from components.session_data_view import SessionDataView
 from components.stats_view import StatsView
+from components.session_data_exporter_dialog import SessionDataExporterDialog
 
 
 class Workbench:
@@ -37,7 +40,7 @@ class Workbench:
 
         self.rotation_angle = 0
 
-        self.saved_session_records = []
+        self.session_data = []
 
         self.current_compression_parameters = {}
 
@@ -367,7 +370,7 @@ class Workbench:
 
             self.statusbar.set_status(f"Saved successfully: {target_relative_path}", Statusbar.SUCCESS)
 
-            self.saved_session_records.append({
+            self.session_data.append({
                 'original_file': source_path,
                 'output_file': destination_path,
                 'original_size': original_size,
@@ -378,7 +381,7 @@ class Workbench:
             self.update_overall_stats()
             self.file_list.mark_as_compressed(self.current_index)
             self.statusbar.set_status(f"Saved successfully: {target_relative_path}", Statusbar.SUCCESS)
-            self.session_data_view.refresh(self.saved_session_records)
+            self.session_data_view.refresh(self.session_data)
 
         self.compress_async(source_path, True, quality, format, optimize, self.rotation_angle, _compress_async_callback)
 
@@ -395,16 +398,16 @@ class Workbench:
             item["rel_path"], original_size, compressed_size, saved_pct, quality, format, psnr_str, ssim)
 
     def update_overall_stats(self):
-        count = len(self.saved_session_records)
+        count = len(self.session_data)
         if count != 0:
-            total_orig = sum(r['original_size'] for r in self.saved_session_records)
-            total_comp = sum(r['compressed_size'] for r in self.saved_session_records)
+            total_orig = sum(r['original_size'] for r in self.session_data)
+            total_comp = sum(r['compressed_size'] for r in self.session_data)
             overall_pct = (1 - (total_comp / total_orig)) * 100 if total_orig > 0 else 0
 
             percentages = [
                 (1 - (r['compressed_size'] / r['original_size'])) * 100 
                 if r['original_size'] > 0 else 0 
-                for r in self.saved_session_records
+                for r in self.session_data
             ]
 
             mean_pct = statistics.mean(percentages)
@@ -417,8 +420,37 @@ class Workbench:
 
     def erase_session_data(self):
         if messagebox.askyesno("Confirm Erasure", "Are you sure you want to erase the session data?"):
-            self.saved_session_records = []
-            self.session_data_view.refresh(self.saved_session_records)
+            self.session_data = []
+            self.session_data_view.refresh(self.session_data)
+
+
+    def on_csv_data_save(self):
+        if len(self.session_data) == 0:
+            messagebox.showwarning("Empty Data", "There is no data to save.")
+            return
+
+        file_path = filedialog.asksaveasfilename(
+            initialfile=f"session_data_{datetime.now().strftime("%Y_%m_%d_%H_%M")}",
+            defaultextension=".csv",
+            filetypes=[("CSV files", "*.csv"), ("All files", "*.*")],
+            title="Save CSV As"
+        )
+
+        if file_path:
+            try:
+                fieldnames = list(self.session_data[0].keys())
+                with open(file_path, mode='w', newline='', encoding='utf-8') as file:
+                    writer = csv.DictWriter(file, fieldnames=fieldnames)
+                    writer.writeheader()
+                    writer.writerows(self.session_data)
+
+                    messagebox.showinfo("Export Successful", "Your data has been exported successfully!")
+                    self.statusbar.set_status(f"Data saved successfully: {file_path}", Statusbar.SUCCESS)
+
+            except Exception as e:
+                messagebox.showerror("Export Error", f"Failed to save file:\n{e}")
+                self.statusbar.set_status(f"Failed to save csv file", Statusbar.ERROR)
+
 
     def open_csv_export_wizard(self):
-        pass
+        SessionDataExporterDialog(self.root, self.session_data, self.on_csv_data_save)

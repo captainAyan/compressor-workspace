@@ -141,8 +141,8 @@ class SessionDataView:
         if self.last_records:
             self.refresh(self.last_records)
 
-    def refresh(self, saved_session_records):
-        self.last_records = saved_session_records
+    def refresh(self, session_data):
+        self.last_records = session_data
 
         # Clear existing items
         for item in self.tree.get_children():
@@ -150,7 +150,7 @@ class SessionDataView:
 
         show_basename_only = self.basename_var.get()
 
-        for record in saved_session_records:
+        for record in session_data:
             original = record['original_file']
             output = record['output_file']
 
