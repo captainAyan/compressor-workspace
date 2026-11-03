@@ -4,17 +4,16 @@ from PIL import Image, ImageTk
 from image_processor import ImageProcessor  # Adjust import based on your project structure
 
 class Viewer(ttk.Frame):
-    """Encapsulates side-by-side canvases, zoom/pan synchronization, layout swapping, rendering, and heatmap controls."""
     def __init__(self, parent, on_rotate, on_reset):
         super().__init__(parent)
         self.on_rotate_cb = on_rotate
         self.on_reset_cb = on_reset
-        
+
         self.zoom_scale = 1.0
         self.swapped = False
         self.showing_heatmap = False
         self.heatmap_multiplier = 5.0  # Default multiplier
-        
+
         # Stored image references for rendering
         self.rotated_orig_img = None
         self.comp_pil_img = None
@@ -23,12 +22,11 @@ class Viewer(ttk.Frame):
         # Image Tk references to prevent garbage collection
         self.orig_tk = None
         self.preview_tk = None
-        
+
         self._drag_data = {"x": 0, "y": 0}
         self.setup_widgets()
 
     def set_images(self, rotated_orig_img, comp_pil_img, raw_diff_gray):
-        """Stores image references inside the viewer component."""
         self.rotated_orig_img = rotated_orig_img
         self.comp_pil_img = comp_pil_img
         self.raw_diff_gray = raw_diff_gray

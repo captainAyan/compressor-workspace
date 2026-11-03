@@ -295,16 +295,21 @@ class Workbench:
 
 
     def on_reset_view(self):
+        """
+        This is the reset callback for the viewer components's internal_reset method
+
+        The flow goes: action (shortcut/menu option/reset button) -> reset_view() -> viewer.internal_reset() -> on_reset_view()
+        """
+
         self.rotation_angle = 0
 
         self.progress_dialog.show(message="Resetting image...")
         file_path = self.source_manager.files[self.current_index]['path']
         quality, format, optimize = self._get_current_compression_parameters()
-        self.compress_and_show(file_path, quality, format, optimize, self.rotation_angle,
-                               lambda error: self.progress_dialog.close())
+        self.show_both(file_path, quality, format, optimize, self.rotation_angle)
 
     def reset_view(self):
-        # viewer.internal_reset will call the on_reset_view callback
+        # viewer.internal_reset # will call the on_reset_view callback
         self.viewer.internal_reset()
 
     def save_current_image(self):
