@@ -27,10 +27,10 @@ class SessionDataExporterDialog(tk.Toplevel):
         button_frame = tk.Frame(self)
         button_frame.pack(fill=tk.X, padx=10, pady=10)
 
-        cancel_btn = tk.Button(button_frame, text="Cancel", command=self.on_cancel, width=10)
+        cancel_btn = ttk.Button(button_frame, text="Cancel", command=self.on_cancel, width=10)
         cancel_btn.pack(side=tk.RIGHT, padx=5)
 
-        save_btn = tk.Button(button_frame, text="Save", command=self.on_save, width=10)
+        save_btn = ttk.Button(button_frame, text="Save", command=self.on_save, width=10)
         save_btn.pack(side=tk.RIGHT, padx=5)
 
         self.protocol("WM_DELETE_WINDOW", self.on_cancel)
