@@ -24,14 +24,14 @@ class CompressionController():
         ttk.Label(q_row, text="Quality:", width=10).pack(side=tk.LEFT)
         self.quality_cb = ttk.Combobox(q_row, values=[str(i) for i in range(10, 101, 5)], width=12, state="readonly")
         self.quality_cb.set("70")
-        self.quality_cb.pack(side=tk.LEFT, padx=5)
+        self.quality_cb.pack(side=tk.LEFT, padx=10)
 
         fmt_row = ttk.Frame(self.parent)
         fmt_row.pack(fill=tk.X, pady=4)
         ttk.Label(fmt_row, text="Format:", width=10).pack(side=tk.LEFT)
         self.format_cb = ttk.Combobox(fmt_row, values=["JPEG", "WEBP"], width=12, state="readonly")
         self.format_cb.set("JPEG")
-        self.format_cb.pack(side=tk.LEFT, padx=5)
+        self.format_cb.pack(side=tk.LEFT, padx=10)
 
         opt_row = ttk.Frame(self.parent)
         opt_row.pack(fill=tk.X, pady=4)
@@ -44,11 +44,11 @@ class CompressionController():
                    text="Preview", 
                    width=10,
                    command=lambda:self.on_preview_cb(*self.get_compression_parameters())
-                   ).pack(side=tk.LEFT, padx=2)
+                   ).pack(side=tk.LEFT)
         ttk.Button(btn_row, text="Save As", 
                    command=lambda:self.on_save_as_cb(*self.get_compression_parameters()), 
                    width=10
-                   ).pack(side=tk.RIGHT, padx=2)
+                   ).pack(side=tk.RIGHT)
         ttk.Button(btn_row, text="Save", 
                    command=lambda:self.on_save_cb(*self.get_compression_parameters()), 
                    width=10
