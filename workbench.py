@@ -25,6 +25,7 @@ from components.progress_dialog import ProgressDialog
 from components.session_data_view import SessionDataView
 from components.stats_view import StatsView
 from components.session_data_exporter_dialog import SessionDataExporterDialog
+from components.restore_progress_dialog import RestoreProgressDialog
 
 
 class Workbench:
@@ -170,6 +171,7 @@ class Workbench:
 
     def on_destination_changed(self, dir_path):
         self.topbar.set_destination_label(dir_path)
+        self.session_restoration_check()
 
     def select_files(self):
         self.source_manager.select_files()
@@ -313,7 +315,7 @@ class Workbench:
         self.viewer.internal_reset()
 
     def save_current_image(self):
-        if not self.source_manager.dest_dir:
+        if not self.source_manager.destination_dir:
             messagebox.showwarning("Destination Missing", "Please select a destination folder first!")
             self.statusbar.set_status("Destination Missing: Please select a destination folder first!", Statusbar.ERROR)
             return
@@ -323,7 +325,7 @@ class Workbench:
         base_name, _ = os.path.splitext(file_item['rel_path'])
         new_extension = ".webp" if self.current_compression_parameters["quality"] == "WEBP" else ".jpg"
         target_relative_path = base_name + new_extension
-        destination_path = os.path.join(self.source_manager.dest_dir, target_relative_path)
+        destination_path = os.path.join(self.source_manager.destination_dir, target_relative_path)
 
         quality, format, optimize = self.compression_controller.get_compression_parameters()
 
@@ -456,3 +458,59 @@ class Workbench:
 
     def open_csv_export_wizard(self):
         SessionDataExporterDialog(self.root, self.session_data, self.on_csv_data_save)
+
+
+    def session_restoration_check(self):
+        source_lookup = {}
+        for original_index, item in enumerate(self.source_manager.files):
+            rel_path = item['rel_path']  # subfolder/image.jpg
+            full_path = item['path']
+
+            try:
+                source_lookup[rel_path] = {
+                    "index": original_index,
+                    "path": full_path,
+                    "size": os.path.getsize(full_path)  # Pre-calculated once
+                }
+            except (FileNotFoundError, PermissionError):
+                continue  # Skip unreadable files
+
+        matched_files = []
+        dest_dir = self.source_manager.destination_dir
+
+        for root, _, files in os.walk(dest_dir):
+            for file in files:
+                if file.lower().endswith(('.jpg', '.jpeg', '.png', '.webp')):
+                    dest_path = os.path.join(root, file)
+                    rel_dest_path = os.path.relpath(dest_path, dest_dir)
+
+                    if rel_dest_path in source_lookup:
+                        try:
+                            dest_size = os.path.getsize(dest_path)
+                        except (FileNotFoundError, PermissionError):
+                            continue
+
+                        source_info = source_lookup[rel_dest_path]
+
+                        matched_files.append({
+                            "index": source_info["index"],
+                            "file_name": file,
+                            "rel_path": rel_dest_path,
+                            "source_path": source_info["path"],
+                            "source_size": source_info["size"],
+                            "destination_path": dest_path,
+                            "destination_size": dest_size
+                        })
+
+        if matched_files:
+            print(f"Found {len(matched_files)} matching file(s)!")
+            RestoreProgressDialog(self.root, matched_files, self.on_mark)
+
+
+    def on_mark(self, selected_items):
+        for item in selected_items:
+            file_index = item.get("index")
+            if file_index is not None:
+                self.file_list.mark_as_compressed(file_index, tag_name="resumed")
+
+
