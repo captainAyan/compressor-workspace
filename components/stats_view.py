@@ -3,6 +3,7 @@ import tkinter as tk
 from tkinter import ttk
 
 from components.disabled_text import DisabledText
+from utility import format_size
 
 
 class StatsView:
@@ -37,8 +38,8 @@ class StatsView:
     def update_overall_stats(self, count, total_original, total_compressed, overall_pct, mean_pct, median_pct):
         summary = (
             f"Files Saved: {count}\n"
-            f"Total Orig: {total_original:.2f} MB\n"
-            f"Total Comp: {total_compressed:.2f} MB\n"
+            f"Total Orig: {format_size(total_original)}\n"
+            f"Total Comp: {format_size(total_compressed)}\n"
             f"Overall Saved: {overall_pct:.1f}%\n"
             f"Mean Compression: {mean_pct:.1f}%\n"
             f"Median Compression: {median_pct:.1f}%"
@@ -48,8 +49,8 @@ class StatsView:
     def update_preview_stats(self, file_name, original_size, compressed_size, saved_percentage, quality, format, psnr_str, ssim):
         info = (
             f"File: {file_name}\n"
-            f"Original Size: {original_size / 1024:.2f} KB\n"
-            f"Compressed Size: {compressed_size / 1024:.2f} KB\n"
+            f"Original Size: {format_size(original_size)}\n"
+            f"Compressed Size: {format_size(compressed_size)}\n"
             f"Saved Space: {saved_percentage:.1f}%\n"
             f"PSNR: {psnr_str}\n"
             f"SSIM: {ssim:.4f}\n"

@@ -418,9 +418,6 @@ class Workbench:
             mean_pct = statistics.mean(percentages)
             median_pct = statistics.median(percentages)
 
-            total_orig = total_orig / (1024*1024)
-            total_comp = total_comp / (1024*1024)
-
             self.stats_view.update_overall_stats(count, total_orig, total_comp, overall_pct, mean_pct, median_pct)
 
     def erase_session_data(self):

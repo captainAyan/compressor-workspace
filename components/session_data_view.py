@@ -83,6 +83,8 @@ import os
 import tkinter as tk
 from tkinter import ttk
 
+from utility import format_size
+
 
 class SessionDataView:
     def __init__(self, parent):
@@ -161,7 +163,7 @@ class SessionDataView:
             self.tree.insert('', tk.END, values=(
                 original,
                 output,
-                record['original_size'],
-                record['compressed_size'],
+                format_size(record['original_size']),
+                format_size(record['compressed_size']),
                 record['quality']
             ))
